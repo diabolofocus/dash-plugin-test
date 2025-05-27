@@ -1,0 +1,5 @@
+{
+  "$schema": "https://dev.wix.com/wix-cli/schemas/dashboard-page.json",
+  "id": "1702fa3a-de5c-44c4-8e64-27737b4d8c2f",
+  "title": "Dash-Plugin-Test"
+}
