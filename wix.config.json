@@ -1,5 +1,5 @@
 {
   "$schema": "https://dev.wix.com/wix-cli/schemas/wix-config.json",
   "appId": "fab32ea8-b5a8-48c6-a2c5-0afcc6053ff2",
-  "projectId": "dash-plugin-test"
+  "projectId": "order-fulfillment-center"
 }
