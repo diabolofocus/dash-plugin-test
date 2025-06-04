@@ -1,6 +1,6 @@
 // components/shared/StatusBadge.tsx
 import React from 'react';
-import { Box, Text } from '@wix/design-system';
+import { Badge } from '@wix/design-system';
 import type { OrderStatus, PaymentStatus } from '../../types/Order';
 
 interface StatusBadgeProps {
@@ -9,64 +9,39 @@ interface StatusBadgeProps {
 }
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, type }) => {
-    const getStatusStyles = (status: string, type: string) => {
+    const getStatusConfig = (status: string, type: string) => {
         if (type === 'order') {
             switch (status) {
                 case 'FULFILLED':
-                    return { backgroundColor: '#dcfce7', color: '#16a34a' };
+                    return { skin: 'neutralSuccess' as const, text: 'Fulfilled' };
                 case 'CANCELED':
-                    return { backgroundColor: '#f3f4f6', color: '#6b7280' };
+                    return { skin: 'neutralLight' as const, type: 'outlined' as const, text: 'Canceled' };
                 default:
-                    return { backgroundColor: '#fecaca', color: '#dc2626' };
+                    return { skin: 'neutralDanger' as const, text: 'Unfulfilled' };
             }
         } else {
             switch (status) {
                 case 'PAID':
-                    return { backgroundColor: '#dcfce7', color: '#16a34a' };
+                    return { skin: 'neutralSuccess' as const, text: 'Paid' };
                 case 'FULLY_REFUNDED':
+                    return { skin: 'neutralLight' as const, type: 'outlined' as const, text: 'Refunded' };
                 case 'PARTIALLY_REFUNDED':
-                    return { backgroundColor: '#FFFFFF', color: '#d97706', border: '1px solid #CCCCCC' };
+                    return { skin: 'neutralLight' as const, type: 'outlined' as const, text: 'Part. Refund' };
                 default:
-                    return { backgroundColor: '#fecaca', color: '#dc2626' };
+                    return { skin: 'neutralDanger' as const, text: 'Unpaid' };
             }
         }
     };
 
-    const getStatusLabel = (status: string, type: string) => {
-        if (type === 'order') {
-            switch (status) {
-                case 'FULFILLED': return 'Fulfilled';
-                case 'CANCELED': return 'Canceled';
-                default: return 'Unfulfilled';
-            }
-        } else {
-            switch (status) {
-                case 'PAID': return 'Paid';
-                case 'FULLY_REFUNDED': return 'Refunded';
-                case 'PARTIALLY_REFUNDED': return 'Part. Refund';
-                default: return 'Unpaid';
-            }
-        }
-    };
-
-    const styles = getStatusStyles(status, type);
-    const label = getStatusLabel(status, type);
+    const config = getStatusConfig(status, type);
 
     return (
-        <Box
-            paddingTop="0px"
-            paddingBottom="0px"
-            paddingLeft="8px"
-            paddingRight="8px"
-            style={{
-                ...styles,
-                borderRadius: '2px',
-                display: 'inline-block'
-            }}
+        <Badge
+            skin={config.skin}
+            size="small"
+            type={config.type || 'solid'}
         >
-            <Text size="tiny" style={{ color: styles.color }}>
-                {label}
-            </Text>
-        </Box>
+            {config.text}
+        </Badge>
     );
 };

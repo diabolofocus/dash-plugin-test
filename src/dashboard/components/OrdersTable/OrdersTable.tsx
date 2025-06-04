@@ -1,7 +1,7 @@
 // components/OrdersTable/OrdersTable.tsx
 import React, { useState } from 'react';
 import { observer } from 'mobx-react-lite';
-import { Box, Text, Dropdown, Search, Button, Loader, Table, TableActionCell, TableToolbar } from '@wix/design-system';
+import { Box, Text, Heading, Dropdown, Search, Button, Loader, Table, TableActionCell, TableToolbar } from '@wix/design-system';
 import * as Icons from '@wix/wix-ui-icons-common';
 import { useStores } from '../../hooks/useStores';
 import { useOrderController } from '../../hooks/useOrderController';
@@ -511,9 +511,9 @@ export const OrdersTable: React.FC = observer(() => {
 
                     style={{ backgroundColor: 'white', borderRadius: '8px 8px 0 0' }}
                 >
-                    <Text size="medium" weight="bold">
+                    <Heading size="medium">
                         Recent Orders ({statusFilteredOrders.length})
-                    </Text>
+                    </Heading>
                 </Box>
 
 

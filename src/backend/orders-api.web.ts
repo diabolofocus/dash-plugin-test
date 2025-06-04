@@ -1,29 +1,67 @@
-// src/backend/orders-api.web.ts - Fixed with proper initialization
+// src/backend/orders-api.web.ts - UPDATED to use elevated web methods
+
 import { webMethod, Permissions } from '@wix/web-methods';
 
-// 🔥 FIX 1: Pre-initialize the ecom module to avoid race conditions
-let ecomModule: any = null;
-let isInitialized = false;
+// Import the elevated web methods
+import {
+  smartFulfillOrderElevated,
+  createFulfillmentElevated,
+  updateFulfillmentElevated,
+  getFulfillmentsElevated
+} from './fulfillment-elevated.web';
 
-async function initializeEcom() {
-  if (!isInitialized) {
+// 🔥 UPDATED: Use elevated web method for fulfillment
+export const fulfillOrderInWix = webMethod(
+  Permissions.Anyone,
+  async ({
+    orderId,
+    trackingNumber,
+    shippingProvider,
+    orderNumber
+  }: {
+    orderId: string;
+    trackingNumber: string;
+    shippingProvider: string;
+    orderNumber: string;
+  }) => {
+    console.log(`🚀 FRONTEND: fulfillOrderInWix called for order ${orderNumber} - delegating to elevated method`);
+
     try {
-      console.log('🔧 Initializing @wix/ecom module...');
-      ecomModule = await import('@wix/ecom');
-      isInitialized = true;
-      console.log('✅ @wix/ecom module initialized successfully');
-    } catch (error) {
-      console.error('❌ Failed to initialize @wix/ecom:', error);
-      throw error;
+      // Use the smart elevated fulfillment method
+      const result = await smartFulfillOrderElevated({
+        orderId,
+        trackingNumber,
+        shippingProvider,
+        orderNumber
+      });
+
+      console.log(`✅ FRONTEND: fulfillOrderInWix completed for order ${orderNumber}:`, {
+        success: result.success,
+        method: result.method || 'smartFulfillOrderElevated',
+        message: result.message
+      });
+
+      return result;
+
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error(`❌ FRONTEND: fulfillOrderInWix failed for order ${orderNumber}:`, error);
+
+      return {
+        success: false,
+        error: errorMsg,
+        message: `Failed to process fulfillment for order ${orderNumber}: ${errorMsg}`,
+        method: 'fulfillOrderInWix_elevated'
+      };
     }
   }
-  return ecomModule;
-}
+);
 
-// 🔥 FIX 2: Enhanced error handling and retry logic
+// Keep your existing testOrdersConnection method unchanged
 export const testOrdersConnection = webMethod(
   Permissions.Anyone,
   async ({ limit = 50, cursor = '' }: { limit?: number; cursor?: string } = {}) => {
+    // Your existing implementation here...
     const maxRetries = 3;
     let lastError: any;
 
@@ -31,13 +69,12 @@ export const testOrdersConnection = webMethod(
       try {
         console.log(`🚀 Attempt ${attempt}/${maxRetries} - Starting testOrdersConnection`);
 
-        // 🔥 FIX 3: Ensure ecom is properly initialized with timeout
         const ecom = await Promise.race([
-          initializeEcom(),
+          import('@wix/ecom'),
           new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Initialization timeout')), 10000)
           )
-        ]);
+        ]) as any;
 
         if (!ecom || !ecom.orders) {
           throw new Error('ecom.orders not available after initialization');
@@ -45,7 +82,6 @@ export const testOrdersConnection = webMethod(
 
         console.log('✅ ecom module ready, attempting to search orders...');
 
-        // 🔥 FIX 4: Add timeout to the search operation
         const searchPromise = ecom.orders.searchOrders({
           filter: {
             status: { "$ne": "INITIALIZED" }
@@ -65,9 +101,9 @@ export const testOrdersConnection = webMethod(
 
         console.log(`✅ Successfully retrieved ${result.orders?.length || 0} orders`);
 
-        // Process orders (keep your existing processing logic)
+        // Your existing order processing logic here...
         const parsedOrders = result.orders?.map((order: any) => {
-          // Your existing order processing logic here...
+          // Your existing order processing logic
           const recipientContact = order.recipientInfo?.contactDetails;
           const billingContact = order.billingInfo?.contactDetails;
           const buyerInfo = order.buyerInfo;
@@ -147,7 +183,7 @@ export const testOrdersConnection = webMethod(
             };
           }) || [];
 
-          // 🔥 IMPROVED STATUS LOGIC
+          // IMPROVED STATUS LOGIC
           const rawStatus = order.status;
           const fulfillmentStatus = order.fulfillmentStatus;
           const rawOrderFulfillmentStatus = order.rawOrder?.fulfillmentStatus;
@@ -200,7 +236,6 @@ export const testOrdersConnection = webMethod(
             recipientInfo: order.recipientInfo,
             rawOrder: order
           };
-
         }) || [];
 
         return {
@@ -223,19 +258,13 @@ export const testOrdersConnection = webMethod(
         console.error(`❌ Attempt ${attempt}/${maxRetries} failed:`, errorMsg);
 
         if (attempt < maxRetries) {
-          // Wait before retrying (exponential backoff)
-          const waitTime = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
+          const waitTime = Math.pow(2, attempt) * 1000;
           console.log(`⏳ Waiting ${waitTime}ms before retry...`);
           await new Promise(resolve => setTimeout(resolve, waitTime));
-
-          // Reset initialization for retry
-          isInitialized = false;
-          ecomModule = null;
         }
       }
     }
 
-    // All retries failed
     const finalErrorMsg = lastError instanceof Error ? lastError.message : String(lastError);
 
     return {
@@ -254,119 +283,14 @@ export const testOrdersConnection = webMethod(
   }
 );
 
-// 🔥 FIX 5: Enhanced fulfillment with same retry logic
-export const fulfillOrderInWix = webMethod(
-  Permissions.Anyone,
-  async ({
-    orderId,
-    trackingNumber,
-    shippingProvider,
-    orderNumber
-  }: {
-    orderId: string;
-    trackingNumber: string;
-    shippingProvider: string;
-    orderNumber: string;
-  }) => {
-    const maxRetries = 2;
-    let lastError: any;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`🚀 Fulfillment attempt ${attempt}/${maxRetries} for order ${orderNumber}`);
-
-        // Ensure ecom is initialized
-        const ecom = await Promise.race([
-          initializeEcom(),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Initialization timeout')), 10000)
-          )
-        ]);
-
-        if (!ecom || !ecom.orders || !ecom.orderFulfillments) {
-          throw new Error('ecom APIs not available after initialization');
-        }
-
-        const ordersAPI = ecom.orders;
-        const fulfillmentAPI = ecom.orderFulfillments;
-
-        const carrierMapping: any = {
-          'dhl': 'dhl',
-          'ups': 'ups',
-          'fedex': 'fedex',
-          'usps': 'usps'
-        };
-
-        const shippingCarrier = carrierMapping[shippingProvider.toLowerCase()] || shippingProvider.toLowerCase();
-
-        // Get order details with timeout
-        const orderDetailsPromise = ordersAPI.getOrder(orderId);
-        const orderDetails = await Promise.race([
-          orderDetailsPromise,
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Get order timeout')), 10000)
-          )
-        ]);
-
-        if (!orderDetails) {
-          throw new Error(`Order ${orderNumber} not found`);
-        }
-
-        const fulfillmentStatus = String(orderDetails.fulfillmentStatus || '');
-
-        if (fulfillmentStatus === 'FULFILLED') {
-          // Update existing fulfillment logic (keep your existing code)
-          // ... (your existing fulfillment update logic)
-        } else {
-          // Create new fulfillment logic (keep your existing code)
-          // ... (your existing fulfillment creation logic)
-        }
-
-        // Your existing fulfillment logic here...
-        return {
-          success: true,
-          method: 'fulfillment_completed',
-          message: `Order ${orderNumber} fulfilled successfully`
-        };
-
-      } catch (currentError: unknown) {
-        lastError = currentError;
-        const errorMsg = currentError instanceof Error ? currentError.message : String(currentError);
-
-        console.error(`❌ Fulfillment attempt ${attempt}/${maxRetries} failed:`, errorMsg);
-
-        if (attempt < maxRetries) {
-          const waitTime = 2000; // 2 second wait
-          console.log(`⏳ Waiting ${waitTime}ms before fulfillment retry...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-
-          // Reset initialization for retry
-          isInitialized = false;
-          ecomModule = null;
-        }
-      }
-    }
-
-    // All retries failed
-    const finalErrorMsg = lastError instanceof Error ? lastError.message : String(lastError);
-
-    return {
-      success: false,
-      error: finalErrorMsg,
-      message: `Failed to process fulfillment after ${maxRetries} attempts: ${finalErrorMsg}`
-    };
-  }
-);
-
-// Add this method to your src/backend/orders-api.web.ts file
-
+// Keep your existing getSingleOrder method unchanged
 export const getSingleOrder = webMethod(
   Permissions.Anyone,
   async (orderId: string) => {
+    // Your existing implementation here...
     try {
       const { orders } = await import('@wix/ecom');
 
-      // Get the specific order
       const order = await orders.getOrder(orderId);
 
       if (!order) {
@@ -376,7 +300,7 @@ export const getSingleOrder = webMethod(
         };
       }
 
-      // Use the same parsing logic as testOrdersConnection for consistency
+      // Your existing order processing logic here...
       const recipientContact = order.recipientInfo?.contactDetails;
       const billingContact = order.billingInfo?.contactDetails;
       const buyerInfo = order.buyerInfo;
@@ -387,7 +311,6 @@ export const getSingleOrder = webMethod(
       const company = recipientContact?.company || billingContact?.company || '';
       const email = buyerInfo?.email || 'no-email@example.com';
 
-      // Extract shipping address
       let shippingAddress = null;
       if (order.recipientInfo?.address) {
         const addr = order.recipientInfo.address;
@@ -407,7 +330,6 @@ export const getSingleOrder = webMethod(
         };
       }
 
-      // Process line items
       const processedItems = order.lineItems?.map((item: any) => {
         let imageUrl = '';
         if (item.image && typeof item.image === 'string') {
@@ -437,7 +359,6 @@ export const getSingleOrder = webMethod(
         };
       }) || [];
 
-      // 🔥 CRITICAL: Proper status handling
       const rawStatus = order.status;
       const fulfillmentStatus = order.fulfillmentStatus;
 
@@ -511,5 +432,5 @@ export const multiply = webMethod(
   Permissions.Anyone,
   (a: number, b: number) => {
     return a * b;
-  },
+  }
 );

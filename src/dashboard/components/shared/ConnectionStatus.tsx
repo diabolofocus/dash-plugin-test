@@ -35,7 +35,7 @@ export const ConnectionStatus: React.FC = observer(() => {
         switch (orderStore.connectionStatus) {
             case 'connected':
                 if (pendingCount === 0) {
-                    return `All ${totalCount} orders fulfilled! 🎉`;
+                    return `All orders are fulfilled!`;
                 }
                 return `${pendingCount} pending fulfillment`;
             case 'connecting':

@@ -140,7 +140,7 @@ export const OrderActivity: React.FC<OrderActivityProps> = ({ order }) => {
                         const isLast = index === sortedActivities.length - 1;
 
                         return (
-                            <Box key={activity._id} direction="horizontal" gap="12px" style={{ position: 'relative' }}>
+                            <Box key={activity._id} direction="horizontal" gap="0px" style={{ position: 'relative' }}>
                                 {/* Timeline dot and line */}
                                 <Box
                                     style={{

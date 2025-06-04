@@ -26,7 +26,6 @@ export const OrderFulfillmentPage: React.FC = observer(() => {
     return <LoadingScreen />;
   }
 
-
   return (
     <WixDesignSystemProvider features={{ newColorsBranding: true }}>
       {/* Add inline styles to ensure proper rendering */}
@@ -94,6 +93,34 @@ export const OrderFulfillmentPage: React.FC = observer(() => {
             min-height: 100vh;
             background-color: #f8f9fa;
           }
+
+          /* FIXED: Force sticky column height and scrolling */
+          .sticky-order-details {
+            position: sticky !important;
+            top: 85px !important;
+            width: 30% !important;
+            height: calc(100vh - 105px) !important;
+            max-height: calc(100vh - 105px) !important;
+            min-height: calc(100vh - 105px) !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            align-self: flex-start !important;
+            border-radius: 8px;
+            background: white;
+            scrollbar-width: none !important; /* Firefox */
+            -ms-overflow-style: none !important; /* Internet Explorer 10+ */
+          }
+
+          /* Ensure the main content container has proper height */
+          .main-content-container {
+            min-height: calc(100vh - 140px) !important;
+          }
+
+          /* Make sure the horizontal container doesn't interfere */
+          .horizontal-container {
+            align-items: flex-start !important;
+            min-height: calc(100vh - 140px) !important;
+          }
         `}
       </style>
 
@@ -104,19 +131,27 @@ export const OrderFulfillmentPage: React.FC = observer(() => {
           actionsBar={<ActionsBar />}
         />
         <Page.Content>
-          <Box gap="24px" direction="vertical">
+          <Box gap="24px" direction="vertical" className="main-content-container">
             {/* Connection Status */}
             <ConnectionStatus />
 
             {/* Two Column Layout */}
-            <Box direction="horizontal" gap="20px" top="start">
+            <Box
+              direction="horizontal"
+              gap="20px"
+              className="horizontal-container"
+              style={{
+                minHeight: 'calc(100vh - 140px)',
+                alignItems: 'flex-start'
+              }}
+            >
               {/* Left Column: Orders Table */}
               <OrdersTable />
 
-              {/* Right Column: Order Details */}
-              <Box width="30%" gap="16px" direction="vertical">
+              {/* Right Column: Order Details - FIXED */}
+              <div className="sticky-order-details">
                 <OrderDetails />
-              </Box>
+              </div>
             </Box>
           </Box>
         </Page.Content>
