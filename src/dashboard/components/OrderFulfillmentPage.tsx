@@ -1,9 +1,7 @@
-// components/OrderFulfillmentPage.tsx - Updated with Real Analytics Card
 import React, { useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
 import { Page, Box, WixDesignSystemProvider } from '@wix/design-system';
 
-// IMPORTANT: Import Wix Design System styles
 import '@wix/design-system/styles.global.css';
 
 import { useStores } from '../hooks/useStores';
@@ -11,7 +9,6 @@ import { useOrderController } from '../hooks/useOrderController';
 import { LoadingScreen } from './shared/LoadingScreen';
 import { ActionsBar } from './shared/ActionsBar';
 import { ConnectionStatus } from './shared/ConnectionStatus';
-import { AnalyticsCard } from './AnalyticsCard/AnalyticsCard';
 import { OrdersTable } from './OrdersTable/OrdersTable';
 import { OrderDetails } from './OrderDetails/OrderDetails';
 
@@ -29,7 +26,6 @@ export const OrderFulfillmentPage: React.FC = observer(() => {
     return <LoadingScreen />;
   }
 
-  console.log('OrderFulfillmentPage: Rendering main UI with Analytics Card');
 
   return (
     <WixDesignSystemProvider features={{ newColorsBranding: true }}>
@@ -111,9 +107,6 @@ export const OrderFulfillmentPage: React.FC = observer(() => {
           <Box gap="24px" direction="vertical">
             {/* Connection Status */}
             <ConnectionStatus />
-
-            {/* Analytics Card - Real Implementation */}
-            <AnalyticsCard />
 
             {/* Two Column Layout */}
             <Box direction="horizontal" gap="20px" top="start">

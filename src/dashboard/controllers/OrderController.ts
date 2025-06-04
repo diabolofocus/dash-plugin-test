@@ -26,7 +26,7 @@ export class OrderController {
         try {
             if (isInitialLoad) {
                 this.uiStore.setLoading(true);
-                this.orderStore.setConnectionStatus(null);
+                this.orderStore.setConnectionStatus('connecting'); // 🔥 FIXED: Use string
             } else {
                 this.uiStore.setLoadingMore(true);
             }
@@ -73,20 +73,17 @@ export class OrderController {
                     this.orderStore.addOrders(result.orders);
                 }
 
-                // 🔍 CRITICAL DEBUG: Pagination setting - ALWAYS SHOW LOAD MORE
                 const paginationToSet = {
-                    hasNext: true, // Always true to show load more button
-                    nextCursor: result.pagination?.nextCursor || String(offset + 50), // Use offset-based pagination
+                    hasNext: true,
+                    nextCursor: result.pagination?.nextCursor || String(offset + 50),
                     prevCursor: result.pagination?.prevCursor || String(Math.max(0, offset - 50))
+                    // Remove this line: totalCount: result.pagination?.totalCount || 0
                 };
 
                 console.log(`⚙️ [${isDev ? 'DEV' : 'PROD'}] OrderController: Setting pagination (ALWAYS SHOW LOAD MORE):`, paginationToSet);
                 this.orderStore.setPagination(paginationToSet);
 
-                this.orderStore.setConnectionStatus({
-                    success: true,
-                    message: `${this.orderStore.unfulfilledOrdersCount} pending fulfillment out of ${result.orders.length} orders.`
-                });
+                this.orderStore.setConnectionStatus('connected'); // 🔥 FIXED: Use string
 
                 // 🔍 FINAL STATE CHECK
                 console.log(`🏁 [${isDev ? 'DEV' : 'PROD'}] OrderController: FINAL STATE:`, {
@@ -137,10 +134,10 @@ export class OrderController {
                 this.orderStore.setOrders(result.orders);
 
                 this.orderStore.setPagination({
-                    hasNext: true, // Always true to show load more
-                    nextCursor: result.pagination?.nextCursor || '50', // Start from offset 50
-                    prevCursor: result.pagination?.prevCursor || '0',
-                    ordersPerPage: 50 // Updated to 50
+                    hasNext: true,
+                    nextCursor: result.pagination?.nextCursor || '50',
+                    prevCursor: result.pagination?.prevCursor || '0'
+                    // Remove this line: totalCount: result.pagination?.totalCount || 0
                 });
 
                 const oldestUnfulfilled = this.orderStore.oldestUnfulfilledOrder;
@@ -148,10 +145,7 @@ export class OrderController {
                     this.selectOrder(oldestUnfulfilled);
                 }
 
-                this.orderStore.setConnectionStatus({
-                    success: true,
-                    message: `${this.orderStore.unfulfilledOrdersCount} pending fulfillment out of ${result.orders.length} orders.`
-                });
+                this.orderStore.setConnectionStatus('connected');
 
                 this.showToast(`Orders refreshed successfully! Found ${result.orders.length} orders.`, 'success');
 
@@ -262,10 +256,7 @@ export class OrderController {
     // Private helper methods
     private handleNoOrdersFound(message?: string, isRefresh = false) {
         this.orderStore.setOrders(DEMO_ORDERS as any);
-        this.orderStore.setConnectionStatus({
-            success: false,
-            message: message || 'No orders found. Showing demo data.'
-        });
+        this.orderStore.setConnectionStatus('disconnected'); // 🔥 FIXED: Use string
 
         if (isRefresh) {
             this.showToast('No orders found during refresh. Showing demo data.', 'warning');
@@ -277,10 +268,7 @@ export class OrderController {
 
         if (isInitialLoad) {
             this.orderStore.setOrders(DEMO_ORDERS as any);
-            this.orderStore.setConnectionStatus({
-                success: false,
-                message: `Failed to load orders: ${errorMessage}. Showing demo data.`
-            });
+            this.orderStore.setConnectionStatus('error'); // 🔥 FIXED: Use string
         } else {
             this.showToast(`Failed to load more orders: ${errorMessage}`, 'error');
         }
@@ -290,10 +278,7 @@ export class OrderController {
         const errorMessage = error instanceof Error ? error.message : String(error);
 
         this.orderStore.setOrders(DEMO_ORDERS as any);
-        this.orderStore.setConnectionStatus({
-            success: false,
-            message: `Failed to refresh orders: ${errorMessage}. Showing demo data.`
-        });
+        this.orderStore.setConnectionStatus('error'); // 🔥 FIXED: Use string
 
         this.showToast(`Failed to refresh orders: ${errorMessage}`, 'error');
     }
