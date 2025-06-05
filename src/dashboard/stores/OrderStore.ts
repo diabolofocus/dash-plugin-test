@@ -163,7 +163,88 @@ export class OrderStore {
         return this.connectionStatus === 'connected';
     }
 
-    // 🔥 ADDED: Missing oldestUnfulfilledOrder getter
+    // Add these methods to your OrderStore.ts class
+
+    // Analytics and reporting methods
+    getLast30DaysOrders(): Order[] {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        return this.orders.filter(order => {
+            const orderDate = new Date(order._createdDate);
+            return orderDate >= thirtyDaysAgo;
+        });
+    }
+
+    getOrdersByDateRange(startDate: Date, endDate: Date): Order[] {
+        return this.orders.filter(order => {
+            const orderDate = new Date(order._createdDate);
+            return orderDate >= startDate && orderDate <= endDate;
+        });
+    }
+
+    calculateSalesMetrics(orders: Order[] = this.orders) {
+        let totalSales = 0;
+        let currency = '€';
+
+        orders.forEach(order => {
+            // Extract numeric value from formatted price
+            const priceMatch = order.total.match(/[\d,]+\.?\d*/);
+            if (priceMatch) {
+                const numericValue = parseFloat(priceMatch[0].replace(',', ''));
+                if (!isNaN(numericValue)) {
+                    totalSales += numericValue;
+                }
+            }
+
+            // Extract currency symbol
+            const currencyMatch = order.total.match(/[€$£¥]/);
+            if (currencyMatch) {
+                currency = currencyMatch[0];
+            }
+        });
+
+        return {
+            totalSales,
+            averageOrderValue: orders.length > 0 ? totalSales / orders.length : 0,
+            currency,
+            orderCount: orders.length
+        };
+    }
+
+    getFulfillmentStats(orders: Order[] = this.orders) {
+        const fulfilled = orders.filter(order => order.status === 'FULFILLED').length;
+        const pending = orders.filter(order =>
+            order.status === 'NOT_FULFILLED' || order.status === 'PARTIALLY_FULFILLED'
+        ).length;
+        const cancelled = orders.filter(order => order.status === 'CANCELED').length;
+
+        return {
+            fulfilled,
+            pending,
+            cancelled,
+            total: orders.length,
+            fulfillmentRate: orders.length > 0 ? (fulfilled / orders.length) * 100 : 0
+        };
+    }
+
+    // Getter for 30-day analytics
+    get last30DaysAnalytics() {
+        const last30DaysOrders = this.getLast30DaysOrders();
+        const salesMetrics = this.calculateSalesMetrics(last30DaysOrders);
+        const fulfillmentStats = this.getFulfillmentStats(last30DaysOrders);
+
+        return {
+            ...salesMetrics,
+            ...fulfillmentStats,
+            dateRange: {
+                start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+                end: new Date()
+            }
+        };
+    }
+
+    // Missing oldestUnfulfilledOrder getter
     get oldestUnfulfilledOrder() {
         const unfulfilledOrders = this.orders.filter(order =>
             order.status === 'NOT_FULFILLED' || order.status === 'PARTIALLY_FULFILLED'
@@ -214,13 +295,6 @@ export class OrderStore {
 
     getOrdersByStatus(status: OrderStatus): Order[] {
         return this.orders.filter(order => order.status === status);
-    }
-
-    getOrdersByDateRange(startDate: Date, endDate: Date): Order[] {
-        return this.orders.filter(order => {
-            const orderDate = new Date(order._createdDate);
-            return orderDate >= startDate && orderDate <= endDate;
-        });
     }
 
     // Statistics
