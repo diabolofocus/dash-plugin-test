@@ -1,6 +1,11 @@
-// services/OrderService.ts - ENHANCED with production debugging
+// services/OrderService.ts - UPDATED to support email parameter
 
 import type { OrdersResponse, FulfillOrderParams, FulfillmentResponse, Order, OrderStatus, PaymentStatus } from '../types/Order';
+
+// 🔥 UPDATED: Add sendShippingEmail to the FulfillOrderParams interface
+interface ExtendedFulfillOrderParams extends FulfillOrderParams {
+    sendShippingEmail?: boolean;
+}
 
 export class OrderService {
     async fetchOrders({ limit = 50, cursor = '' }): Promise<OrdersResponse> {
@@ -165,7 +170,8 @@ export class OrderService {
         }
     }
 
-    async fulfillOrder(params: FulfillOrderParams): Promise<FulfillmentResponse> {
+    // 🔥 UPDATED: Support sendShippingEmail parameter
+    async fulfillOrder(params: ExtendedFulfillOrderParams): Promise<FulfillmentResponse> {
         const isProd = !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
 
         try {
@@ -174,6 +180,7 @@ export class OrderService {
                 orderNumber: params.orderNumber,
                 trackingNumber: params.trackingNumber,
                 shippingProvider: params.shippingProvider,
+                sendShippingEmail: params.sendShippingEmail, // 🔥 NEW: Log email preference
                 environment: isProd ? 'PRODUCTION' : 'DEVELOPMENT'
             });
 
@@ -190,7 +197,14 @@ export class OrderService {
             console.log(`📞 [${isProd ? 'PROD' : 'DEV'}] Frontend: Calling backend fulfillOrderInWix...`);
             const startTime = Date.now();
 
-            const result = await backendModule.fulfillOrderInWix(params);
+            // 🔥 UPDATED: Pass all parameters including sendShippingEmail
+            const result = await backendModule.fulfillOrderInWix({
+                orderId: params.orderId,
+                trackingNumber: params.trackingNumber,
+                shippingProvider: params.shippingProvider,
+                orderNumber: params.orderNumber,
+                sendShippingEmail: params.sendShippingEmail // 🔥 NEW: Pass email preference
+            });
 
             const duration = Date.now() - startTime;
             console.log(`📊 [${isProd ? 'PROD' : 'DEV'}] Frontend: fulfillOrderInWix completed in ${duration}ms:`, {
@@ -198,7 +212,8 @@ export class OrderService {
                 method: result.method,
                 hasError: !!result.error,
                 hasMessage: !!result.message,
-                hasFulfillmentId: !!(result as any).fulfillmentId,
+                hasFulfillmentId: 'fulfillmentId' in result && !!(result as any).fulfillmentId,
+                hasEmailInfo: !!result.emailInfo, // 🔥 NEW: Log email info presence
                 resultKeys: Object.keys(result)
             });
 
@@ -206,7 +221,8 @@ export class OrderService {
                 console.log(`✅ [${isProd ? 'PROD' : 'DEV'}] Frontend: Fulfillment successful:`, {
                     orderNumber: params.orderNumber,
                     fulfillmentId: 'fulfillmentId' in result ? result.fulfillmentId : undefined,
-                    message: result.message
+                    message: result.message,
+                    emailInfo: result.emailInfo // 🔥 NEW: Log email info
                 });
             } else {
                 console.error(`❌ [${isProd ? 'PROD' : 'DEV'}] Frontend: Fulfillment failed:`, {
@@ -230,7 +246,12 @@ export class OrderService {
             return {
                 success: false,
                 message: `Failed to fulfill order: ${errorMsg}`,
-                error: errorMsg
+                error: errorMsg,
+                emailInfo: { // 🔥 NEW: Include email info in error response
+                    emailRequested: params.sendShippingEmail || false,
+                    emailSentAutomatically: false,
+                    note: 'Email not sent due to fulfillment failure'
+                }
             };
         }
     }

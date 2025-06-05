@@ -1,8 +1,8 @@
-// src/backend/orders-api.web.ts - UPDATED to use elevated web methods
+// src/backend/orders-api.web.ts - SIMPLIFIED with email checkbox support
 
 import { webMethod, Permissions } from '@wix/web-methods';
 
-// Import the elevated web methods
+// Import the simplified elevated web methods
 import {
   smartFulfillOrderElevated,
   createFulfillmentElevated,
@@ -10,21 +10,27 @@ import {
   getFulfillmentsElevated
 } from './fulfillment-elevated.web';
 
-// 🔥 UPDATED: Use elevated web method for fulfillment
+// 🔥 SIMPLIFIED: Use elevated web method for fulfillment with optional email
 export const fulfillOrderInWix = webMethod(
   Permissions.Anyone,
   async ({
     orderId,
     trackingNumber,
     shippingProvider,
-    orderNumber
+    orderNumber,
+    sendShippingEmail = true // Default to true, controlled by frontend checkbox
   }: {
     orderId: string;
     trackingNumber: string;
     shippingProvider: string;
     orderNumber: string;
+    sendShippingEmail?: boolean;
   }) => {
-    console.log(`🚀 FRONTEND: fulfillOrderInWix called for order ${orderNumber} - delegating to elevated method`);
+    console.log(`🚀 FRONTEND: fulfillOrderInWix called for order ${orderNumber}`, {
+      trackingNumber,
+      shippingProvider,
+      sendShippingEmail
+    });
 
     try {
       // Use the smart elevated fulfillment method
@@ -38,10 +44,21 @@ export const fulfillOrderInWix = webMethod(
       console.log(`✅ FRONTEND: fulfillOrderInWix completed for order ${orderNumber}:`, {
         success: result.success,
         method: result.method || 'smartFulfillOrderElevated',
-        message: result.message
+        message: result.message,
+        emailRequested: sendShippingEmail
       });
 
-      return result;
+      // Add email info to the response
+      return {
+        ...result,
+        emailInfo: {
+          emailRequested: sendShippingEmail,
+          emailSentAutomatically: sendShippingEmail && result.success,
+          note: sendShippingEmail
+            ? 'Wix automatically sends shipping confirmation email when fulfillment includes tracking info'
+            : 'Email sending was disabled by user choice'
+        }
+      };
 
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -51,17 +68,21 @@ export const fulfillOrderInWix = webMethod(
         success: false,
         error: errorMsg,
         message: `Failed to process fulfillment for order ${orderNumber}: ${errorMsg}`,
-        method: 'fulfillOrderInWix_elevated'
+        method: 'fulfillOrderInWix_simplified',
+        emailInfo: {
+          emailRequested: sendShippingEmail,
+          emailSentAutomatically: false,
+          note: 'Email not sent due to fulfillment failure'
+        }
       };
     }
   }
 );
 
-// Keep your existing testOrdersConnection method unchanged
+// Keep your existing methods unchanged...
 export const testOrdersConnection = webMethod(
   Permissions.Anyone,
   async ({ limit = 50, cursor = '' }: { limit?: number; cursor?: string } = {}) => {
-    // Your existing implementation here...
     const maxRetries = 3;
     let lastError: any;
 
@@ -101,9 +122,8 @@ export const testOrdersConnection = webMethod(
 
         console.log(`✅ Successfully retrieved ${result.orders?.length || 0} orders`);
 
-        // Your existing order processing logic here...
+        // Your existing order processing logic...
         const parsedOrders = result.orders?.map((order: any) => {
-          // Your existing order processing logic
           const recipientContact = order.recipientInfo?.contactDetails;
           const billingContact = order.billingInfo?.contactDetails;
           const buyerInfo = order.buyerInfo;
@@ -283,11 +303,9 @@ export const testOrdersConnection = webMethod(
   }
 );
 
-// Keep your existing getSingleOrder method unchanged
 export const getSingleOrder = webMethod(
   Permissions.Anyone,
   async (orderId: string) => {
-    // Your existing implementation here...
     try {
       const { orders } = await import('@wix/ecom');
 
@@ -300,7 +318,7 @@ export const getSingleOrder = webMethod(
         };
       }
 
-      // Your existing order processing logic here...
+      // Your existing order processing logic...
       const recipientContact = order.recipientInfo?.contactDetails;
       const billingContact = order.billingInfo?.contactDetails;
       const buyerInfo = order.buyerInfo;

@@ -26,7 +26,7 @@ export const OrderDetails: React.FC = observer(() => {
                     <Box align="center" paddingTop="40px" paddingBottom="40px" gap="16px" direction="vertical">
                         <Icons.Package size="48px" style={{ color: '#ccc' }} />
                         <Text secondary size="small">
-                            Click "Fulfill" on any pending order to start the fulfillment process
+                            Click on any order to view and fulfill it
                         </Text>
                     </Box>
                 </Card.Content>

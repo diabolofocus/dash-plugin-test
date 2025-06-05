@@ -150,8 +150,8 @@ export class FulfillmentController {
 
     private getFulfillmentSuccessMessage(order: Order, trackingNumber: string): string {
         return order.status === 'FULFILLED'
-            ? `Order #${order.number} tracking updated: ${trackingNumber}`
-            : `Order #${order.number} fulfilled with tracking: ${trackingNumber}`;
+            ? `Order #${order.number} tracking updated: ${trackingNumber} | Email not sent to customer`
+            : `Order #${order.number} fulfilled with tracking: ${trackingNumber} | Email not sent to customer`;
     }
 
     private handleFulfillmentError(error: unknown) {

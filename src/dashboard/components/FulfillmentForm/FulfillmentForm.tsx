@@ -1,7 +1,7 @@
-// components/FulfillmentForm/FulfillmentForm.tsx
-import React from 'react';
+// components/FulfillmentForm/FulfillmentForm.tsx - FIXED to use existing service architecture
+import React, { useState } from 'react';
 import { observer } from 'mobx-react-lite';
-import { Box, Button, FormField, Input, Dropdown, Loader, Text } from '@wix/design-system'; // ADD Text import
+import { Box, Button, FormField, Input, Dropdown, Loader, Text, Checkbox } from '@wix/design-system';
 import * as Icons from '@wix/wix-ui-icons-common';
 import { useStores } from '../../hooks/useStores';
 import { useOrderController } from '../../hooks/useOrderController';
@@ -14,6 +14,10 @@ export const FulfillmentForm: React.FC = observer(() => {
     const { selectedOrder } = orderStore;
     const { trackingNumber, selectedCarrier, submitting } = uiStore;
 
+    // 🔥 NEW: Email checkbox state (checked by default)
+    const [sendConfirmationEmail, setSendConfirmationEmail] = useState(true);
+    const [lastFulfillmentResult, setLastFulfillmentResult] = useState<any>(null);
+
     if (!selectedOrder) {
         return (
             <Box align="center" paddingTop="40px" paddingBottom="40px" gap="16px" direction="vertical">
@@ -24,6 +28,80 @@ export const FulfillmentForm: React.FC = observer(() => {
             </Box>
         );
     }
+
+    const handleFulfillOrder = async () => {
+        const { selectedOrder } = orderStore;
+        const { trackingNumber, selectedCarrier } = uiStore;
+
+        if (!trackingNumber || !selectedCarrier || !selectedOrder) {
+            console.warn('Missing required fulfillment data');
+            return;
+        }
+
+        uiStore.setSubmitting(true);
+
+        try {
+            console.log(`🚀 Frontend: Starting fulfillOrder with email setting:`, {
+                orderId: selectedOrder._id,
+                orderNumber: selectedOrder.number,
+                trackingNumber,
+                shippingProvider: selectedCarrier,
+                sendConfirmationEmail
+            });
+
+            // 🔥 FIXED: Use existing OrderService instead of direct backend import
+            const orderService = new (await import('../../services/OrderService')).OrderService();
+
+            const result = await orderService.fulfillOrder({
+                orderId: selectedOrder._id,
+                trackingNumber,
+                shippingProvider: selectedCarrier,
+                orderNumber: selectedOrder.number,
+                sendShippingEmail: sendConfirmationEmail // 🔥 Pass email preference
+            });
+
+            setLastFulfillmentResult(result);
+
+            if (!result.success) {
+                throw new Error(result.message || 'Failed to fulfill order in Wix');
+            }
+
+            // Update order status in store
+            orderStore.updateOrderStatus(selectedOrder._id, 'FULFILLED');
+
+            // Show success message with email info
+            let message = selectedOrder.status === 'FULFILLED'
+                ? `Order #${selectedOrder.number} tracking updated: ${trackingNumber}`
+                : `Order #${selectedOrder.number} fulfilled with tracking: ${trackingNumber}`;
+
+            if (sendConfirmationEmail) {
+                message += ' • Confirmation email sent to customer';
+            } else {
+                message += ' • No email sent';
+            }
+
+            console.log('✅ Fulfillment completed:', message);
+
+            // Clear form
+            orderController.clearSelection();
+
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error('❌ Fulfillment failed:', errorMessage);
+
+            setLastFulfillmentResult({
+                success: false,
+                error: errorMessage,
+                emailInfo: {
+                    emailRequested: sendConfirmationEmail,
+                    emailSentAutomatically: false,
+                    note: 'Email not sent due to fulfillment failure'
+                }
+            });
+        } finally {
+            uiStore.setSubmitting(false);
+        }
+    };
 
     return (
         <Box gap="24px" direction="vertical">
@@ -46,9 +124,47 @@ export const FulfillmentForm: React.FC = observer(() => {
                 />
             </FormField>
 
+            {/* Email confirmation checkbox */}
+            <Box gap="8px" direction="vertical" >
+                <Checkbox
+                    checked={sendConfirmationEmail}
+                    onChange={() => setSendConfirmationEmail(!sendConfirmationEmail)}
+                    disabled={submitting}
+                    size="small"
+                >
+                    Send confirmation email to customer
+                </Checkbox>
+            </Box>
+
+            {/* Show email result from last fulfillment */}
+            {lastFulfillmentResult?.emailInfo && (
+                <Box
+                    padding="12px"
+                    backgroundColor={lastFulfillmentResult.success ? '#f0f9ff' : '#fef2f2'}
+                    style={{
+                        borderRadius: '4px',
+                        border: `1px solid ${lastFulfillmentResult.success ? '#bfdbfe' : '#fecaca'}`
+                    }}
+                >
+                    <Box gap="8px" direction="vertical">
+                        <Text size="small" weight="bold">
+                            {lastFulfillmentResult.success ? '✅ Email Status' : '❌ Email Status'}
+                        </Text>
+                        <Text size="tiny">
+                            {lastFulfillmentResult.emailInfo.note}
+                        </Text>
+                        {lastFulfillmentResult.emailInfo.customerEmail && (
+                            <Text size="tiny">
+                                📧 Sent to: {lastFulfillmentResult.emailInfo.customerEmail}
+                            </Text>
+                        )}
+                    </Box>
+                </Box>
+            )}
+
             <Box gap="12px" direction="vertical">
                 <Button
-                    onClick={() => orderController.fulfillOrder()}
+                    onClick={handleFulfillOrder}
                     disabled={submitting || !trackingNumber || !selectedCarrier}
                     prefixIcon={submitting ? <Loader size="tiny" /> : <Icons.Package />}
                     fullWidth

@@ -1,14 +1,13 @@
-// types/Order.ts - FIXED to match actual Wix API response
+// types/Order.ts - UPDATED with email parameter
 
 export interface FulfillmentResponse {
     success: boolean;
     method?: string;
     message?: string;
     error?: string;
-    // 🔥 FIXED: Match actual Wix API response structure
-    fulfillmentId?: string;        // From createFulfillment response
-    trackingNumber?: string;       // For convenience
-    orderWithFulfillments?: {      // From updateFulfillment response
+    fulfillmentId?: string;
+    trackingNumber?: string;
+    orderWithFulfillments?: {
         orderId: string;
         fulfillments: Array<{
             _id: string;
@@ -26,13 +25,22 @@ export interface FulfillmentResponse {
             completed?: boolean;
         }>;
     };
+    // 🔥 NEW: Email information in response
+    emailInfo?: {
+        emailRequested?: boolean;
+        emailSentAutomatically?: boolean;
+        customerEmail?: string;
+        note?: string;
+    };
 }
 
+// 🔥 UPDATED: Add sendShippingEmail parameter
 export interface FulfillOrderParams {
     orderId: string;
     trackingNumber: string;
     shippingProvider: string;
     orderNumber: string;
+    sendShippingEmail?: boolean; // 🔥 NEW: Optional email parameter
 }
 
 export type OrderStatus = 'NOT_FULFILLED' | 'PARTIALLY_FULFILLED' | 'FULFILLED' | 'CANCELED';
@@ -125,10 +133,8 @@ export interface OrdersResponse {
     ecomError?: string;
 }
 
-// 🔥 ADD: Missing ConnectionStatus type
 export type ConnectionStatus = 'connected' | 'disconnected' | 'connecting' | 'error';
 
-// 🔥 ADD: Backend response interface to match actual API responses
 export interface BackendOrdersResponse {
     success: boolean;
     method?: string;
@@ -144,14 +150,12 @@ export interface BackendOrdersResponse {
     ecomError?: string;
 }
 
-// 🔥 ADD: Backend single order response
 export interface BackendSingleOrderResponse {
     success: boolean;
     order?: any;
     error?: string;
 }
 
-// 🔥 ADD: Query orders response (different structure)
 export interface QueryOrdersResponse {
     success: boolean;
     orders: Order[];

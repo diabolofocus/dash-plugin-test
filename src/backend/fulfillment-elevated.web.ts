@@ -1,7 +1,73 @@
-// src/backend/fulfillment-elevated.web.ts
+// src/backend/fulfillment-elevated.web.ts - SIMPLIFIED VERSION
+
 import { webMethod, Permissions } from '@wix/web-methods';
 import { auth } from '@wix/essentials';
 import { orderFulfillments, orders } from '@wix/ecom';
+
+// 🔥 SIMPLIFIED: Smart fulfillment with elevated permissions
+export const smartFulfillOrderElevated = webMethod(
+    Permissions.Anyone,
+    async ({
+        orderId,
+        trackingNumber,
+        shippingProvider,
+        orderNumber
+    }: {
+        orderId: string;
+        trackingNumber: string;
+        shippingProvider: string;
+        orderNumber: string;
+    }) => {
+        console.log(`🚀 ELEVATED: smartFulfillOrderElevated called for order ${orderNumber}`);
+
+        try {
+            // First, check if order already has fulfillments
+            const fulfillmentsCheck = await getFulfillmentsElevated({ orderId, orderNumber });
+
+            if (!fulfillmentsCheck.success) {
+                throw new Error(`Failed to check existing fulfillments: ${fulfillmentsCheck.error}`);
+            }
+
+            if (fulfillmentsCheck.hasExistingFulfillments && fulfillmentsCheck.fulfillments.length > 0) {
+                // Order already has fulfillments - UPDATE existing fulfillment
+                console.log(`🔄 ELEVATED: Order ${orderNumber} already has fulfillments, updating existing fulfillment...`);
+
+                const existingFulfillment = fulfillmentsCheck.fulfillments[0];
+                const fulfillmentId = existingFulfillment._id;
+
+                return await updateFulfillmentElevated({
+                    orderId,
+                    fulfillmentId,
+                    trackingNumber,
+                    shippingProvider,
+                    orderNumber
+                });
+
+            } else {
+                // No existing fulfillments - CREATE new fulfillment
+                console.log(`📦 ELEVATED: Creating new fulfillment for order ${orderNumber}`);
+
+                return await createFulfillmentElevated({
+                    orderId,
+                    trackingNumber,
+                    shippingProvider,
+                    orderNumber
+                });
+            }
+
+        } catch (error: unknown) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            console.error(`❌ ELEVATED: smartFulfillOrderElevated failed for order ${orderNumber}:`, error);
+
+            return {
+                success: false,
+                error: errorMsg,
+                message: `Smart fulfillment failed for order ${orderNumber}: ${errorMsg}`,
+                method: 'smartFulfillOrderElevated'
+            };
+        }
+    }
+);
 
 // 🔥 ELEVATED: Create fulfillment with elevated permissions
 export const createFulfillmentElevated = webMethod(
@@ -32,7 +98,8 @@ export const createFulfillmentElevated = webMethod(
                 id: orderDetails._id,
                 status: orderDetails.status,
                 fulfillmentStatus: orderDetails.fulfillmentStatus,
-                lineItemsCount: orderDetails.lineItems?.length || 0
+                lineItemsCount: orderDetails.lineItems?.length || 0,
+                customerEmail: orderDetails.buyerInfo?.email || 'No email found'
             });
 
             if (!orderDetails.lineItems || orderDetails.lineItems.length === 0) {
@@ -68,6 +135,7 @@ export const createFulfillmentElevated = webMethod(
             };
 
             console.log(`🔨 ELEVATED: Creating fulfillment with data:`, JSON.stringify(fulfillmentData, null, 2));
+            console.log(`📧 ELEVATED: Shipping confirmation email will be sent to: ${orderDetails.buyerInfo?.email || 'Unknown'}`);
 
             // Use elevated permissions for createFulfillment
             const elevatedCreateFulfillment = auth.elevate(orderFulfillments.createFulfillment);
@@ -116,6 +184,10 @@ export const updateFulfillmentElevated = webMethod(
         console.log(`🚀 ELEVATED: updateFulfillmentElevated called for order ${orderNumber}`);
 
         try {
+            // Get order details for email logging
+            const elevatedGetOrder = auth.elevate(orders.getOrder);
+            const orderDetails = await elevatedGetOrder(orderId);
+
             // Map shipping provider
             const carrierMapping: Record<string, string> = {
                 'dhl': 'dhl',
@@ -130,6 +202,7 @@ export const updateFulfillmentElevated = webMethod(
             console.log(`🚚 ELEVATED: Using carrier: ${mappedCarrier} (from ${shippingProvider})`);
 
             console.log(`🔄 ELEVATED: Updating fulfillment ${fulfillmentId} with tracking: ${trackingNumber}`);
+            console.log(`📧 ELEVATED: Updated shipping confirmation email will be sent to: ${orderDetails?.buyerInfo?.email || 'Unknown'}`);
 
             const identifiers = {
                 orderId: orderId,
@@ -227,71 +300,6 @@ export const getFulfillmentsElevated = webMethod(
                 method: 'getFulfillmentsElevated',
                 hasExistingFulfillments: false,
                 fulfillments: []
-            };
-        }
-    }
-);
-
-// 🔥 ELEVATED: Smart fulfillment - automatically decide create vs update
-export const smartFulfillOrderElevated = webMethod(
-    Permissions.Anyone,
-    async ({
-        orderId,
-        trackingNumber,
-        shippingProvider,
-        orderNumber
-    }: {
-        orderId: string;
-        trackingNumber: string;
-        shippingProvider: string;
-        orderNumber: string;
-    }) => {
-        console.log(`🚀 ELEVATED: smartFulfillOrderElevated called for order ${orderNumber}`);
-
-        try {
-            // First, check if order already has fulfillments
-            const fulfillmentsCheck = await getFulfillmentsElevated({ orderId, orderNumber });
-
-            if (!fulfillmentsCheck.success) {
-                throw new Error(`Failed to check existing fulfillments: ${fulfillmentsCheck.error}`);
-            }
-
-            if (fulfillmentsCheck.hasExistingFulfillments && fulfillmentsCheck.fulfillments.length > 0) {
-                // Order already has fulfillments - UPDATE existing fulfillment
-                console.log(`🔄 ELEVATED: Order ${orderNumber} already has fulfillments, updating existing fulfillment...`);
-
-                const existingFulfillment = fulfillmentsCheck.fulfillments[0];
-                const fulfillmentId = existingFulfillment._id;
-
-                return await updateFulfillmentElevated({
-                    orderId,
-                    fulfillmentId,
-                    trackingNumber,
-                    shippingProvider,
-                    orderNumber
-                });
-
-            } else {
-                // No existing fulfillments - CREATE new fulfillment
-                console.log(`📦 ELEVATED: Creating new fulfillment for order ${orderNumber}`);
-
-                return await createFulfillmentElevated({
-                    orderId,
-                    trackingNumber,
-                    shippingProvider,
-                    orderNumber
-                });
-            }
-
-        } catch (error: unknown) {
-            const errorMsg = error instanceof Error ? error.message : String(error);
-            console.error(`❌ ELEVATED: smartFulfillOrderElevated failed for order ${orderNumber}:`, error);
-
-            return {
-                success: false,
-                error: errorMsg,
-                message: `Smart fulfillment failed for order ${orderNumber}: ${errorMsg}`,
-                method: 'smartFulfillOrderElevated'
             };
         }
     }

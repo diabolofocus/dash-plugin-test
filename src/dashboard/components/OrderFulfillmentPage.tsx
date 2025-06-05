@@ -106,7 +106,7 @@ export const OrderFulfillmentPage: React.FC = observer(() => {
             overflow-x: hidden !important;
             align-self: flex-start !important;
             border-radius: 8px;
-            background: white;
+            
             scrollbar-width: none !important; /* Firefox */
             -ms-overflow-style: none !important; /* Internet Explorer 10+ */
           }

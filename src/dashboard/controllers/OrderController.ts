@@ -1,4 +1,4 @@
-// controllers/OrderController.ts - Using queryOrders with offset pagination and 50 limit
+// controllers/OrderController.ts - FIXED pagination logic
 import { dashboard } from '@wix/dashboard';
 import type { OrderStore } from '../stores/OrderStore';
 import type { UIStore } from '../stores/UIStore';
@@ -20,13 +20,13 @@ export class OrderController {
         console.log(`🚀 [${isDev ? 'DEV' : 'PROD'}] OrderController: Starting loadOrders`, {
             isInitialLoad,
             offset: offset,
-            requestedLimit: 50 // Updated to 50
+            requestedLimit: 50
         });
 
         try {
             if (isInitialLoad) {
                 this.uiStore.setLoading(true);
-                this.orderStore.setConnectionStatus('connecting'); // 🔥 FIXED: Use string
+                this.orderStore.setConnectionStatus('connecting');
             } else {
                 this.uiStore.setLoadingMore(true);
             }
@@ -34,7 +34,7 @@ export class OrderController {
             console.log(`📞 [${isDev ? 'DEV' : 'PROD'}] OrderController: Calling orderService.fetchOrders`);
 
             const result = await this.orderService.fetchOrders({
-                limit: 50, // Changed to 50
+                limit: 50,
                 cursor: offset === 0 ? undefined : String(offset)
             });
 
@@ -45,18 +45,6 @@ export class OrderController {
                 nextOffset: result.pagination?.nextCursor || 'none',
                 message: result.message?.substring(0, 100) + '...'
             });
-
-            // 🔍 CRITICAL DEBUG: Log pagination details
-            if (result.pagination) {
-                console.log(`🎯 [${isDev ? 'DEV' : 'PROD'}] OrderController: PAGINATION ANALYSIS:`, {
-                    hasNext: result.pagination.hasNext,
-                    nextOffset: result.pagination.nextCursor,
-                    nextOffsetExists: !!result.pagination.nextCursor,
-                    currentOffset: offset,
-                    willShowLoadMore: true, // Always true now
-                    paginationObject: result.pagination
-                });
-            }
 
             if (result.success && result.orders && result.orders.length > 0) {
                 if (isInitialLoad) {
@@ -73,30 +61,46 @@ export class OrderController {
                     this.orderStore.addOrders(result.orders);
                 }
 
+                // 🔥 FIXED: Use actual pagination data from backend instead of hardcoding
                 const paginationToSet = {
-                    hasNext: true,
-                    nextCursor: result.pagination?.nextCursor || String(offset + 50),
-                    prevCursor: result.pagination?.prevCursor || String(Math.max(0, offset - 50))
-                    // Remove this line: totalCount: result.pagination?.totalCount || 0
+                    hasNext: result.pagination?.hasNext || false, // Use actual hasNext from backend
+                    nextCursor: result.pagination?.nextCursor || '',
+                    prevCursor: result.pagination?.prevCursor || ''
                 };
 
-                console.log(`⚙️ [${isDev ? 'DEV' : 'PROD'}] OrderController: Setting pagination (ALWAYS SHOW LOAD MORE):`, paginationToSet);
-                this.orderStore.setPagination(paginationToSet);
+                console.log(`⚙️ [${isDev ? 'DEV' : 'PROD'}] OrderController: Setting pagination from backend response:`, {
+                    backendHasNext: result.pagination?.hasNext,
+                    backendNextCursor: result.pagination?.nextCursor,
+                    finalPagination: paginationToSet
+                });
 
-                this.orderStore.setConnectionStatus('connected'); // 🔥 FIXED: Use string
+                this.orderStore.setPagination(paginationToSet);
+                this.orderStore.setConnectionStatus('connected');
 
                 // 🔍 FINAL STATE CHECK
                 console.log(`🏁 [${isDev ? 'DEV' : 'PROD'}] OrderController: FINAL STATE:`, {
                     totalOrdersInStore: this.orderStore.orders.length,
-                    storeHasMorePages: true, // Always true now
-                    storePaginationHasNext: true, // Always true now
-                    storePaginationNextOffset: this.orderStore.pagination.nextCursor || 'empty',
-                    loadMoreButtonShouldShow: true // Always true now
+                    storeHasMorePages: this.orderStore.hasMorePages(),
+                    storePaginationHasNext: this.orderStore.pagination.hasNext,
+                    storePaginationNextCursor: this.orderStore.pagination.nextCursor,
+                    loadMoreButtonShouldShow: this.orderStore.hasMorePages()
                 });
 
             } else if (isInitialLoad) {
                 console.warn(`⚠️ [${isDev ? 'DEV' : 'PROD'}] OrderController: No orders found, using demo data`);
                 this.handleNoOrdersFound(result.message);
+            } else {
+                // 🔥 NEW: Handle case where load more returns no results
+                console.log(`📭 [${isDev ? 'DEV' : 'PROD'}] OrderController: Load more returned no results - end of data reached`);
+
+                // Set hasNext to false since we've reached the end
+                this.orderStore.setPagination({
+                    hasNext: false,
+                    nextCursor: '',
+                    prevCursor: this.orderStore.pagination.prevCursor
+                });
+
+                this.showToast('All orders have been loaded', 'success');
             }
 
         } catch (error) {
@@ -120,7 +124,7 @@ export class OrderController {
 
         try {
             const result = await this.orderService.fetchOrders({
-                limit: 50, // Changed to 50
+                limit: 50,
                 cursor: undefined
             });
 
@@ -133,11 +137,11 @@ export class OrderController {
             if (result.success && result.orders && result.orders.length > 0) {
                 this.orderStore.setOrders(result.orders);
 
+                // 🔥 FIXED: Use actual pagination data instead of hardcoding
                 this.orderStore.setPagination({
-                    hasNext: true,
-                    nextCursor: result.pagination?.nextCursor || '50',
-                    prevCursor: result.pagination?.prevCursor || '0'
-                    // Remove this line: totalCount: result.pagination?.totalCount || 0
+                    hasNext: result.pagination?.hasNext || false,
+                    nextCursor: result.pagination?.nextCursor || '',
+                    prevCursor: result.pagination?.prevCursor || ''
                 });
 
                 const oldestUnfulfilled = this.orderStore.oldestUnfulfilledOrder;
@@ -168,16 +172,24 @@ export class OrderController {
         console.log(`➕ [${isDev ? 'DEV' : 'PROD'}] OrderController: loadMoreOrders called`, {
             hasMorePages: this.orderStore.hasMorePages(),
             nextOffset: nextOffset,
-            currentOrderCount: this.orderStore.orders.length
+            currentOrderCount: this.orderStore.orders.length,
+            paginationState: this.orderStore.pagination
         });
 
-        // Check if we should attempt to load more
-        if (this.orderStore.hasMorePages()) {
-            await this.loadOrders(nextOffset);
-        } else {
-            console.log(`📭 [${isDev ? 'DEV' : 'PROD'}] OrderController: Load more called but no more pages flagged`);
+        // 🔥 IMPROVED: Better checking logic
+        if (!this.orderStore.hasMorePages()) {
+            console.log(`📭 [${isDev ? 'DEV' : 'PROD'}] OrderController: No more pages available`);
             this.showToast('All orders have been loaded', 'success');
+            return;
         }
+
+        if (!this.orderStore.pagination.nextCursor) {
+            console.log(`📭 [${isDev ? 'DEV' : 'PROD'}] OrderController: No next cursor available`);
+            this.showToast('All orders have been loaded', 'success');
+            return;
+        }
+
+        await this.loadOrders(nextOffset);
     }
 
     selectOrder(order: Order) {
@@ -225,9 +237,19 @@ export class OrderController {
 
             this.orderStore.updateOrderStatus(selectedOrder._id, 'FULFILLED');
 
-            const message = selectedOrder.status === 'FULFILLED'
+            // 🔥 UPDATED: Include email info in success message
+            let message = selectedOrder.status === 'FULFILLED'
                 ? `Order #${selectedOrder.number} tracking updated: ${trackingNumber}`
                 : `Order #${selectedOrder.number} fulfilled with tracking: ${trackingNumber}`;
+
+            // Add email status to message if available
+            if (result.emailInfo) {
+                if (result.emailInfo.emailSentAutomatically) {
+                    message += ' • Confirmation email sent to customer';
+                } else {
+                    message += ' • No email sent';
+                }
+            }
 
             this.showToast(message, 'success');
 
@@ -256,7 +278,14 @@ export class OrderController {
     // Private helper methods
     private handleNoOrdersFound(message?: string, isRefresh = false) {
         this.orderStore.setOrders(DEMO_ORDERS as any);
-        this.orderStore.setConnectionStatus('disconnected'); // 🔥 FIXED: Use string
+        this.orderStore.setConnectionStatus('disconnected');
+
+        // 🔥 FIXED: Set proper pagination for demo data
+        this.orderStore.setPagination({
+            hasNext: false,
+            nextCursor: '',
+            prevCursor: ''
+        });
 
         if (isRefresh) {
             this.showToast('No orders found during refresh. Showing demo data.', 'warning');
@@ -268,7 +297,14 @@ export class OrderController {
 
         if (isInitialLoad) {
             this.orderStore.setOrders(DEMO_ORDERS as any);
-            this.orderStore.setConnectionStatus('error'); // 🔥 FIXED: Use string
+            this.orderStore.setConnectionStatus('error');
+
+            // 🔥 FIXED: Set proper pagination for demo data
+            this.orderStore.setPagination({
+                hasNext: false,
+                nextCursor: '',
+                prevCursor: ''
+            });
         } else {
             this.showToast(`Failed to load more orders: ${errorMessage}`, 'error');
         }
@@ -278,7 +314,14 @@ export class OrderController {
         const errorMessage = error instanceof Error ? error.message : String(error);
 
         this.orderStore.setOrders(DEMO_ORDERS as any);
-        this.orderStore.setConnectionStatus('error'); // 🔥 FIXED: Use string
+        this.orderStore.setConnectionStatus('error');
+
+        // 🔥 FIXED: Set proper pagination for demo data
+        this.orderStore.setPagination({
+            hasNext: false,
+            nextCursor: '',
+            prevCursor: ''
+        });
 
         this.showToast(`Failed to refresh orders: ${errorMessage}`, 'error');
     }
