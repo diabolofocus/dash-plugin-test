@@ -25,13 +25,6 @@ export class OrderStore {
         this.orders = orders;
     }
 
-    addOrders(orders: Order[]) {
-        // Avoid duplicates when adding more orders
-        const existingIds = new Set(this.orders.map(o => o._id));
-        const newOrders = orders.filter(o => !existingIds.has(o._id));
-        this.orders = [...this.orders, ...newOrders];
-    }
-
     clearOrders() {
         this.orders = [];
         this.selectedOrder = null;
@@ -108,11 +101,6 @@ export class OrderStore {
         };
     }
 
-    // 🔥 ADDED: Missing hasMorePages method
-    hasMorePages() {
-        return this.pagination.hasNext && this.pagination.nextCursor;
-    }
-
     // Getters
     get ordersCount() {
         return this.orders.length;
@@ -169,10 +157,6 @@ export class OrderStore {
 
     get hasSelectedOrder() {
         return this.selectedOrder !== null;
-    }
-
-    get canLoadMore() {
-        return this.pagination.hasNext && this.pagination.nextCursor;
     }
 
     get isConnected() {

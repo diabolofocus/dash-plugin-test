@@ -49,7 +49,7 @@ export const FulfillmentForm: React.FC = observer(() => {
                 sendConfirmationEmail
             });
 
-            // 🔥 FIXED: Use existing OrderService instead of direct backend import
+            // FIXED: Use existing OrderService instead of direct backend import
             const orderService = new (await import('../../services/OrderService')).OrderService();
 
             const result = await orderService.fulfillOrder({
@@ -57,7 +57,7 @@ export const FulfillmentForm: React.FC = observer(() => {
                 trackingNumber,
                 shippingProvider: selectedCarrier,
                 orderNumber: selectedOrder.number,
-                sendShippingEmail: sendConfirmationEmail // 🔥 Pass email preference
+                sendShippingEmail: sendConfirmationEmail // Pass email preference
             });
 
             setLastFulfillmentResult(result);

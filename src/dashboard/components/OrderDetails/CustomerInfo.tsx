@@ -21,10 +21,10 @@ export const CustomerInfo: React.FC<CustomerInfoProps> = ({ order }) => {
     const fullName = `${firstName} ${lastName}`;
 
     // Get phone - try multiple sources
-    const phone = recipientContact?.phone || billingContact?.phone || order.customer.phone || 'No phone provided';
+    const phone = recipientContact?.phone || billingContact?.phone || order.customer.phone || ''; //No phone provided
 
     // Get company - try multiple sources
-    const company = recipientContact?.company || billingContact?.company || order.customer.company || 'No company provided';
+    const company = recipientContact?.company || billingContact?.company || order.customer.company || ''; // No company provided
 
     // Email should be available from order.customer
     const email = order.customer.email || 'No email provided';

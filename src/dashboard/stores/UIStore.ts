@@ -23,10 +23,6 @@ export class UIStore {
         this.refreshing = refreshing;
     };
 
-    setLoadingMore = (loadingMore: boolean) => {
-        this.loadingMore = loadingMore;
-    };
-
     setSubmitting = (submitting: boolean) => {
         this.submitting = submitting;
     };

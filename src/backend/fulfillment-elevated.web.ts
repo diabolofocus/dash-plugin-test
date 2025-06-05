@@ -4,7 +4,7 @@ import { webMethod, Permissions } from '@wix/web-methods';
 import { auth } from '@wix/essentials';
 import { orderFulfillments, orders } from '@wix/ecom';
 
-// 🔥 SIMPLIFIED: Smart fulfillment with elevated permissions
+// Smart fulfillment with elevated permissions
 export const smartFulfillOrderElevated = webMethod(
     Permissions.Anyone,
     async ({
@@ -18,7 +18,7 @@ export const smartFulfillOrderElevated = webMethod(
         shippingProvider: string;
         orderNumber: string;
     }) => {
-        console.log(`🚀 ELEVATED: smartFulfillOrderElevated called for order ${orderNumber}`);
+        console.log(`ELEVATED: smartFulfillOrderElevated called for order ${orderNumber}`);
 
         try {
             // First, check if order already has fulfillments
@@ -30,7 +30,7 @@ export const smartFulfillOrderElevated = webMethod(
 
             if (fulfillmentsCheck.hasExistingFulfillments && fulfillmentsCheck.fulfillments.length > 0) {
                 // Order already has fulfillments - UPDATE existing fulfillment
-                console.log(`🔄 ELEVATED: Order ${orderNumber} already has fulfillments, updating existing fulfillment...`);
+                console.log(`ELEVATED: Order ${orderNumber} already has fulfillments, updating existing fulfillment...`);
 
                 const existingFulfillment = fulfillmentsCheck.fulfillments[0];
                 const fulfillmentId = existingFulfillment._id;
@@ -57,7 +57,7 @@ export const smartFulfillOrderElevated = webMethod(
 
         } catch (error: unknown) {
             const errorMsg = error instanceof Error ? error.message : String(error);
-            console.error(`❌ ELEVATED: smartFulfillOrderElevated failed for order ${orderNumber}:`, error);
+            console.error(`ELEVATED: smartFulfillOrderElevated failed for order ${orderNumber}:`, error);
 
             return {
                 success: false,
@@ -69,7 +69,7 @@ export const smartFulfillOrderElevated = webMethod(
     }
 );
 
-// 🔥 ELEVATED: Create fulfillment with elevated permissions
+// ELEVATED: Create fulfillment with elevated permissions
 export const createFulfillmentElevated = webMethod(
     Permissions.Anyone,
     async ({
@@ -94,7 +94,7 @@ export const createFulfillmentElevated = webMethod(
                 throw new Error(`Order ${orderNumber} not found`);
             }
 
-            console.log(`📊 ELEVATED: Order ${orderNumber} details:`, {
+            console.log(`ELEVATED: Order ${orderNumber} details:`, {
                 id: orderDetails._id,
                 status: orderDetails.status,
                 fulfillmentStatus: orderDetails.fulfillmentStatus,
@@ -165,7 +165,7 @@ export const createFulfillmentElevated = webMethod(
     }
 );
 
-// 🔥 ELEVATED: Update fulfillment with elevated permissions
+// ELEVATED: Update fulfillment with elevated permissions
 export const updateFulfillmentElevated = webMethod(
     Permissions.Anyone,
     async ({
@@ -181,7 +181,7 @@ export const updateFulfillmentElevated = webMethod(
         shippingProvider: string;
         orderNumber: string;
     }) => {
-        console.log(`🚀 ELEVATED: updateFulfillmentElevated called for order ${orderNumber}`);
+        console.log(`ELEVATED: updateFulfillmentElevated called for order ${orderNumber}`);
 
         try {
             // Get order details for email logging
@@ -199,10 +199,10 @@ export const updateFulfillmentElevated = webMethod(
             };
 
             const mappedCarrier = carrierMapping[shippingProvider.toLowerCase()] || shippingProvider.toLowerCase();
-            console.log(`🚚 ELEVATED: Using carrier: ${mappedCarrier} (from ${shippingProvider})`);
+            console.log(`ELEVATED: Using carrier: ${mappedCarrier} (from ${shippingProvider})`);
 
-            console.log(`🔄 ELEVATED: Updating fulfillment ${fulfillmentId} with tracking: ${trackingNumber}`);
-            console.log(`📧 ELEVATED: Updated shipping confirmation email will be sent to: ${orderDetails?.buyerInfo?.email || 'Unknown'}`);
+            console.log(`ELEVATED: Updating fulfillment ${fulfillmentId} with tracking: ${trackingNumber}`);
+            console.log(`ELEVATED: Updated shipping confirmation email will be sent to: ${orderDetails?.buyerInfo?.email || 'Unknown'}`);
 
             const identifiers = {
                 orderId: orderId,
@@ -218,7 +218,7 @@ export const updateFulfillmentElevated = webMethod(
                 }
             };
 
-            console.log(`🔧 ELEVATED: Update parameters:`, {
+            console.log(`ELEVATED: Update parameters:`, {
                 identifiers: JSON.stringify(identifiers, null, 2),
                 options: JSON.stringify(options, null, 2)
             });
@@ -227,7 +227,7 @@ export const updateFulfillmentElevated = webMethod(
             const elevatedUpdateFulfillment = auth.elevate(orderFulfillments.updateFulfillment);
             const updateResult = await elevatedUpdateFulfillment(identifiers, options);
 
-            console.log(`✅ ELEVATED: Successfully updated fulfillment for order ${orderNumber}:`, updateResult);
+            console.log(`ELEVATED: Successfully updated fulfillment for order ${orderNumber}:`, updateResult);
 
             return {
                 success: true,
@@ -238,7 +238,7 @@ export const updateFulfillmentElevated = webMethod(
 
         } catch (error: unknown) {
             const errorMsg = error instanceof Error ? error.message : String(error);
-            console.error(`❌ ELEVATED: updateFulfillmentElevated failed for order ${orderNumber}:`, error);
+            console.error(`ELEVATED: updateFulfillmentElevated failed for order ${orderNumber}:`, error);
 
             return {
                 success: false,
@@ -250,7 +250,7 @@ export const updateFulfillmentElevated = webMethod(
     }
 );
 
-// 🔥 ELEVATED: Check existing fulfillments with elevated permissions
+// ELEVATED: Check existing fulfillments with elevated permissions
 export const getFulfillmentsElevated = webMethod(
     Permissions.Anyone,
     async ({
@@ -260,7 +260,7 @@ export const getFulfillmentsElevated = webMethod(
         orderId: string;
         orderNumber: string;
     }) => {
-        console.log(`🚀 ELEVATED: getFulfillmentsElevated called for order ${orderNumber}`);
+        console.log(`ELEVATED: getFulfillmentsElevated called for order ${orderNumber}`);
 
         try {
             // Use elevated permissions for listFulfillmentsForSingleOrder
@@ -291,7 +291,7 @@ export const getFulfillmentsElevated = webMethod(
 
         } catch (error: unknown) {
             const errorMsg = error instanceof Error ? error.message : String(error);
-            console.error(`❌ ELEVATED: getFulfillmentsElevated failed for order ${orderNumber}:`, error);
+            console.error(`ELEVATED: getFulfillmentsElevated failed for order ${orderNumber}:`, error);
 
             return {
                 success: false,

@@ -437,7 +437,7 @@ export const OrdersTable: React.FC = observer(() => {
         {
             title: 'Total',
             render: (order: Order) => (
-                <Text size="small" weight="normal">{order.total}</Text>
+                <Text size="small" >{order.total}</Text>
             ),
             width: '70px',
             align: 'start' as const
@@ -581,27 +581,6 @@ export const OrdersTable: React.FC = observer(() => {
                     </Table>
                 )}
 
-                {/* Load More Button */}
-                {orderStore.hasMorePages() && (
-                    <TableToolbar removeVerticalPadding>
-                        <Box
-                            align="center"
-                            padding="20px"
-                            width="100%"
-                            style={{ display: 'flex', justifyContent: 'center' }}
-                        >
-                            <Button
-                                size="small"
-                                border="outlined"
-                                onClick={() => orderController.loadMoreOrders()}
-                                disabled={uiStore.loadingMore}
-                                prefixIcon={uiStore.loadingMore ? <Loader size="tiny" /> : undefined}
-                            >
-                                {uiStore.loadingMore ? 'Loading more orders...' : 'Load More Orders'}
-                            </Button>
-                        </Box>
-                    </TableToolbar>
-                )}
             </Box>
 
             {/* Add some CSS styles for better visual feedback */}
