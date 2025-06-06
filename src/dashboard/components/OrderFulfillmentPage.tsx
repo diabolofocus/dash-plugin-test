@@ -35,12 +35,6 @@ export const OrderFulfillmentPage: React.FC = observer(() => {
           .wix-design-system {
             font-family: HelveticaNeueW01-45Ligh, HelveticaNeueW02-45Ligh, HelveticaNeueW10-45Ligh, Helvetica Neue, Helvetica, Arial, sans-serif;
           }
-          
-          /* Your existing custom styles */
-          [data-hook="selected-order"] {
-            background-color:rgb(234, 243, 250) !important;
-            border-color:rgb(48, 128, 207) !important;
-          }
           .clickable-name {
             color: #3b82f6 !important;
             font-size: 18px;
@@ -126,8 +120,8 @@ export const OrderFulfillmentPage: React.FC = observer(() => {
 
       <Page>
         <Page.Header
-          title="Order Fulfillment Center"
-          subtitle={`Manage your store orders (${orderStore.orders.length} total)`}
+          title="Orders"
+          subtitle={`Manage and fulfill your store orders`}
           actionsBar={<ActionsBar />}
         />
         <Page.Content>

@@ -5,13 +5,13 @@ import { Page, Box, Loader, Text, WixDesignSystemProvider } from '@wix/design-sy
 export const LoadingScreen: React.FC = () => (
     <WixDesignSystemProvider features={{ newColorsBranding: true }}>
         <Page>
-            <Page.Header title="Orders Fulfillment Center" />
+            <Page.Header title="Orders" />
             <Page.Content>
                 <Box align="center" paddingTop="300px">
                     <Box direction="vertical" align="center" gap="20px">
                         <Loader size="medium" />
                         <Text size="medium" align="center">
-                            Loading orders...
+                            Loading orders dashboard...
                         </Text>
                     </Box>
                 </Box>

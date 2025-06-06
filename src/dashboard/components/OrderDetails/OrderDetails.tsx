@@ -12,6 +12,14 @@ import { ShippingAddress } from './ShippingAddress';
 import { FulfillmentForm } from '../FulfillmentForm/FulfillmentForm';
 import { OrderActivity } from './OrderActivity';
 import { StatusBadge } from '../shared/StatusBadge';
+import { BillingInfo } from './BillingInfo'; // Use existing BillingInfo component
+import { BillingAddress } from './BillingAddress'; // New BillingAddress component
+import { ExtendedFields } from './ExtendedFields';
+import { CustomFields } from './CustomFields';
+import { dashboard } from '@wix/dashboard';
+import { pages } from '@wix/ecom/dashboard';
+import type { Order } from '../../types/Order';
+
 
 export const OrderDetails: React.FC = observer(() => {
     const { orderStore } = useStores();
@@ -35,10 +43,25 @@ export const OrderDetails: React.FC = observer(() => {
     }
 
     const handleOrderLinkClick = () => {
-        const siteId = 'c114497e-2dc7-4739-804d-bda72c8bd27f'; // Replace with your actual site ID
-        const orderId = selectedOrder._id;
-        const orderUrl = `https://manage.wix.com/dashboard/${siteId}/ecom-platform/order-details/${orderId}`;
-        window.open(orderUrl, '_blank');
+        try {
+            // Get the selected order from your store/state
+            const order = orderStore.selectedOrder; // or however you access the current order
+
+            if (!order) {
+                console.warn('No order selected for navigation');
+                return;
+            }
+
+            console.log(`Order link clicked for order #${order.number}`);
+
+            // Navigate to order details page using the same logic as the View Order button
+            const destination = pages.orderDetails({
+                id: order._id
+            });
+            dashboard.navigate(destination);
+        } catch (error) {
+            console.error('Failed to navigate to order details:', error);
+        }
     };
 
     return (
@@ -94,6 +117,19 @@ export const OrderDetails: React.FC = observer(() => {
 
                         <Card.Divider />
 
+                        {/* Billing Address Section */}
+                        <BillingAddress order={selectedOrder} />
+
+                        {/* Extended Fields Section - Only show divider if ExtendedFields will render */}
+                        {selectedOrder.customFields && selectedOrder.customFields.length > 0 && (
+                            <>
+                                <Card.Divider />
+                                <CustomFields order={selectedOrder} />
+                            </>
+                        )}
+
+                        <Card.Divider />
+
                         {/* Product Images */}
                         <ProductImages order={selectedOrder} />
                     </Box>
@@ -108,7 +144,6 @@ export const OrderDetails: React.FC = observer(() => {
                             <Text size="small" className="section-title">Buyer Note:</Text>
                             <Text
                                 size="small"
-                                className="clickable-info"
                                 onClick={() => orderController.copyToClipboard(selectedOrder.rawOrder.buyerNote, 'Buyer Note')}
                             >
                                 {selectedOrder.rawOrder.buyerNote}

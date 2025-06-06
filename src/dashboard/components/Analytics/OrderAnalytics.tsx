@@ -1,4 +1,4 @@
-// components/Analytics/OrderAnalytics.tsx
+// Fixed OrderAnalytics.tsx
 import React from 'react';
 import { observer } from 'mobx-react-lite';
 import { Box, Text, Card } from '@wix/design-system';
@@ -18,14 +18,54 @@ interface AnalyticsData {
 export const OrderAnalytics: React.FC = observer(() => {
     const { orderStore } = useStores();
 
+    // Helper to parse price string (e.g., "€123.45" or "$123.45") to number
+    const parsePrice = (price: string): number => {
+        // Remove all non-digit, non-dot, non-comma, and non-minus characters
+        const cleaned = price.replace(/[^0-9.,-]/g, '');
+        // Replace comma with dot if comma is used as decimal separator
+        const normalized = cleaned.replace(',', '.');
+        const parsed = parseFloat(normalized);
+        return isNaN(parsed) ? 0 : parsed;
+    };
+
+    // Helper to extract currency symbol from price string
+    const extractCurrency = (price: string): string => {
+        const match = price.match(/[^0-9.,-]+/);
+        return match ? match[0] : '€';
+    };
+
     const calculateLast30DaysAnalytics = (): AnalyticsData => {
+        const now = new Date();
         const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        thirtyDaysAgo.setDate(now.getDate() - 30);
+        // Reset time to start of day for accurate comparison
+        thirtyDaysAgo.setHours(0, 0, 0, 0);
+
+        console.log('📊 OrderAnalytics Debug:', {
+            now: now.toISOString(),
+            thirtyDaysAgo: thirtyDaysAgo.toISOString(),
+            totalOrders: orderStore.orders.length
+        });
 
         // Filter orders from last 30 days
         const last30DaysOrders = orderStore.orders.filter(order => {
             const orderDate = new Date(order._createdDate);
-            return orderDate >= thirtyDaysAgo;
+            const isInRange = orderDate >= thirtyDaysAgo;
+
+            console.log('📅 Order Date Check:', {
+                orderNumber: order.number,
+                orderDate: orderDate.toISOString(),
+                thirtyDaysAgo: thirtyDaysAgo.toISOString(),
+                isInRange
+            });
+
+            return isInRange;
+        });
+
+        console.log('📊 Filtered Orders:', {
+            total: orderStore.orders.length,
+            last30Days: last30DaysOrders.length,
+            orderNumbers: last30DaysOrders.map(o => o.number)
         });
 
         // Calculate metrics
@@ -33,20 +73,20 @@ export const OrderAnalytics: React.FC = observer(() => {
         let currency = '€'; // Default currency
 
         last30DaysOrders.forEach(order => {
-            // Extract numeric value from formatted price (e.g., "€123.45" -> 123.45)
-            const priceMatch = order.total.match(/[\d,]+\.?\d*/);
-            if (priceMatch) {
-                const numericValue = parseFloat(priceMatch[0].replace(',', ''));
-                if (!isNaN(numericValue)) {
-                    totalSales += numericValue;
-                }
+            const parsedPrice = parsePrice(order.total);
+            totalSales += parsedPrice;
+
+            const orderCurrency = extractCurrency(order.total);
+            if (orderCurrency !== '€') {
+                currency = orderCurrency;
             }
 
-            // Extract currency symbol
-            const currencyMatch = order.total.match(/[€$£¥]/);
-            if (currencyMatch) {
-                currency = currencyMatch[0];
-            }
+            console.log('💰 Processing Order:', {
+                orderNumber: order.number,
+                originalTotal: order.total,
+                parsedPrice,
+                runningTotal: totalSales
+            });
         });
 
         const totalOrders = last30DaysOrders.length;
@@ -60,7 +100,7 @@ export const OrderAnalytics: React.FC = observer(() => {
             order.status === 'NOT_FULFILLED' || order.status === 'PARTIALLY_FULFILLED'
         ).length;
 
-        return {
+        const result = {
             totalSales,
             totalOrders,
             averageOrderValue,
@@ -68,6 +108,10 @@ export const OrderAnalytics: React.FC = observer(() => {
             fulfilledOrders,
             pendingOrders
         };
+
+        console.log('📊 Final Analytics:', result);
+
+        return result;
     };
 
     const analytics = calculateLast30DaysAnalytics();

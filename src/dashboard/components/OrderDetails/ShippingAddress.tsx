@@ -10,9 +10,10 @@ interface ShippingAddressProps {
 }
 
 const getShippingAddress = (order: Order): ShippingAddressType | null => {
+  // Try to get shipping address from different possible locations
   if (order.shippingAddress) return order.shippingAddress;
-  if (order.rawOrder?.recipientInfo?.address) return order.rawOrder.recipientInfo.address;
-  if (order.recipientInfo?.address) return order.recipientInfo.address;
+  if (order.rawOrder?.shippingInfo?.shipmentDetails?.address) return order.rawOrder.shippingInfo.shipmentDetails.address;
+  if (order.rawOrder?.recipientInfo?.contactDetails?.address) return order.rawOrder.recipientInfo.contactDetails.address;
   if (order.billingInfo?.address) return order.billingInfo.address;
   return null;
 };

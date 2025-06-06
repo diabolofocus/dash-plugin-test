@@ -10,7 +10,15 @@ import {
   getFulfillmentsElevated
 } from './fulfillment-elevated.web';
 
-// 🔥 SIMPLIFIED: Use elevated web method for fulfillment with optional email
+// Define the email info interface
+interface EmailInfo {
+  emailRequested: boolean;
+  emailSentAutomatically: boolean;
+  emailSent?: boolean;
+  customerEmail?: string;
+  note: string;
+}
+
 export const fulfillOrderInWix = webMethod(
   Permissions.Anyone,
   async ({
@@ -48,16 +56,36 @@ export const fulfillOrderInWix = webMethod(
         emailRequested: sendShippingEmail
       });
 
-      // Add email info to the response
+      // 🔥 FIXED: Proper email info with correct typing
+      const emailInfo: EmailInfo = {
+        emailRequested: sendShippingEmail,
+        emailSentAutomatically: false,
+        note: 'Email sending was disabled by user choice'
+      };
+
+      // Check if fulfillment was successful and email was requested
+      if (result.success && sendShippingEmail) {
+        // Try to get customer email for better reporting
+        try {
+          const { getSingleOrder } = await import('./orders-api.web');
+          const orderResult = await getSingleOrder(orderId);
+
+          if (orderResult.success && orderResult.order) {
+            emailInfo.customerEmail = orderResult.order.customer.email;
+            emailInfo.emailSentAutomatically = true; // Wix should auto-send if enabled
+            emailInfo.note = `Wix should automatically send shipping confirmation to ${orderResult.order.customer.email} (if dashboard email settings are enabled)`;
+          } else {
+            emailInfo.note = 'Fulfillment successful, but could not retrieve customer email for confirmation';
+          }
+        } catch (emailError) {
+          console.error('Could not get customer details for email confirmation:', emailError);
+          emailInfo.note = 'Fulfillment successful, email status unknown - check dashboard email settings';
+        }
+      }
+
       return {
         ...result,
-        emailInfo: {
-          emailRequested: sendShippingEmail,
-          emailSentAutomatically: sendShippingEmail && result.success,
-          note: sendShippingEmail
-            ? 'Wix automatically sends shipping confirmation email when fulfillment includes tracking info'
-            : 'Email sending was disabled by user choice'
-        }
+        emailInfo
       };
 
     } catch (error: unknown) {

@@ -39,13 +39,6 @@ export class OrderController {
                 console.log(`📥 [${isDev ? 'DEV' : 'PROD'}] OrderController: Setting ${result.orders.length} orders`);
                 this.orderStore.setOrders(result.orders);
 
-                // Auto-select oldest unfulfilled order
-                const oldestUnfulfilled = this.orderStore.oldestUnfulfilledOrder;
-                if (oldestUnfulfilled) {
-                    this.selectOrder(oldestUnfulfilled);
-                    console.log(`✅ [${isDev ? 'DEV' : 'PROD'}] OrderController: Auto-selected order ${oldestUnfulfilled.number}`);
-                }
-
                 this.orderStore.setConnectionStatus('connected');
 
                 console.log(`🏁 [${isDev ? 'DEV' : 'PROD'}] OrderController: Successfully loaded ${result.orders.length} orders`);
@@ -85,17 +78,12 @@ export class OrderController {
             if (result.success && result.orders && result.orders.length > 0) {
                 this.orderStore.setOrders(result.orders);
 
-                // 🔥 FIXED: Use actual pagination data instead of hardcoding
+                // Use actual pagination data instead of hardcoding
                 this.orderStore.setPagination({
                     hasNext: result.pagination?.hasNext || false,
                     nextCursor: result.pagination?.nextCursor || '',
                     prevCursor: result.pagination?.prevCursor || ''
                 });
-
-                const oldestUnfulfilled = this.orderStore.oldestUnfulfilledOrder;
-                if (oldestUnfulfilled) {
-                    this.selectOrder(oldestUnfulfilled);
-                }
 
                 this.orderStore.setConnectionStatus('connected');
 
@@ -178,7 +166,7 @@ export class OrderController {
             const errorMessage = error instanceof Error ? error.message : String(error);
             this.showToast(`Failed to fulfill order: ${errorMessage}`, 'error');
         } finally {
-            this.clearSelection();
+            this.uiStore.resetForm();
             this.uiStore.setSubmitting(false);
         }
     }

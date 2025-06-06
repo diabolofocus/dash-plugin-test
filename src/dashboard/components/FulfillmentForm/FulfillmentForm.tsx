@@ -1,4 +1,5 @@
-// components/FulfillmentForm/FulfillmentForm.tsx - FIXED to use existing service architecture
+// components/FulfillmentForm/FulfillmentForm.tsx - FIXED email status display
+
 import React, { useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import { Box, Button, FormField, Input, Dropdown, Loader, Text, Checkbox } from '@wix/design-system';
@@ -69,15 +70,27 @@ export const FulfillmentForm: React.FC = observer(() => {
             // Update order status in store
             orderStore.updateOrderStatus(selectedOrder._id, 'FULFILLED');
 
-            // Show success message with email info
+            // 🔥 FIXED: Show accurate email status message
             let message = selectedOrder.status === 'FULFILLED'
                 ? `Order #${selectedOrder.number} tracking updated: ${trackingNumber}`
                 : `Order #${selectedOrder.number} fulfilled with tracking: ${trackingNumber}`;
 
-            if (sendConfirmationEmail) {
-                message += ' • Confirmation email sent to customer';
+            // Check actual email status from backend response
+            if (result.emailInfo) {
+                if (result.emailInfo.emailSentAutomatically && result.emailInfo.customerEmail) {
+                    message += ` • Email sent to ${result.emailInfo.customerEmail}`;
+                } else if (result.emailInfo.emailRequested) {
+                    message += ' • Email not sent (check dashboard email settings)';
+                } else {
+                    message += ' • No email requested';
+                }
             } else {
-                message += ' • No email sent';
+                // Fallback for cases where emailInfo is missing
+                if (sendConfirmationEmail) {
+                    message += ' • Email status unknown (check dashboard settings)';
+                } else {
+                    message += ' • No email sent';
+                }
             }
 
             console.log('✅ Fulfillment completed:', message);
@@ -134,6 +147,11 @@ export const FulfillmentForm: React.FC = observer(() => {
                 >
                     Send confirmation email to customer
                 </Checkbox>
+                {sendConfirmationEmail && (
+                    <Text size="tiny" secondary>
+                        💡 Make sure email settings are enabled in your Wix dashboard (Checkout → Edit Emails)
+                    </Text>
+                )}
             </Box>
 
             {/* Show email result from last fulfillment */}
@@ -148,14 +166,14 @@ export const FulfillmentForm: React.FC = observer(() => {
                 >
                     <Box gap="8px" direction="vertical">
                         <Text size="small" weight="bold">
-                            {lastFulfillmentResult.success ? '✅ Email Status' : '❌ Email Status'}
+                            {lastFulfillmentResult.emailInfo.emailSentAutomatically ? '✅ Email Status' : '⚠️ Email Status'}
                         </Text>
                         <Text size="tiny">
                             {lastFulfillmentResult.emailInfo.note}
                         </Text>
                         {lastFulfillmentResult.emailInfo.customerEmail && (
                             <Text size="tiny">
-                                📧 Sent to: {lastFulfillmentResult.emailInfo.customerEmail}
+                                📧 Customer: {lastFulfillmentResult.emailInfo.customerEmail}
                             </Text>
                         )}
                     </Box>

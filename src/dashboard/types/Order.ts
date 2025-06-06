@@ -1,5 +1,35 @@
 // types/Order.ts - UPDATED with email parameter
 
+export interface CustomField {
+    title: string;
+    translatedTitle?: string;
+    value: any;
+}
+
+export interface ExtendedFields {
+    namespaces?: Record<string, Record<string, any>>;
+}
+
+export interface FullAddressContactDetails {
+    company?: string;
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+}
+
+export interface BillingInfo {
+    address?: Address;
+    contactDetails?: FullAddressContactDetails;
+    vatId?: VatId;
+    paymentMethod?: string;
+    paymentProviderTransactionId?: string;
+    externalTransactionId?: string;
+}
+
+export interface VatId {
+    type?: string;
+    number?: string;
+}
 export interface FulfillmentResponse {
     success: boolean;
     method?: string;
@@ -25,7 +55,7 @@ export interface FulfillmentResponse {
             completed?: boolean;
         }>;
     };
-    // 🔥 NEW: Email information in response
+    // Email information in response
     emailInfo?: {
         emailRequested?: boolean;
         emailSentAutomatically?: boolean;
@@ -34,13 +64,13 @@ export interface FulfillmentResponse {
     };
 }
 
-// 🔥 UPDATED: Add sendShippingEmail parameter
+// Add sendShippingEmail parameter
 export interface FulfillOrderParams {
     orderId: string;
     trackingNumber: string;
     shippingProvider: string;
     orderNumber: string;
-    sendShippingEmail?: boolean; // 🔥 NEW: Optional email parameter
+    sendShippingEmail?: boolean; // Optional email parameter
 }
 
 export type OrderStatus = 'NOT_FULFILLED' | 'PARTIALLY_FULFILLED' | 'FULFILLED' | 'CANCELED';
@@ -72,6 +102,27 @@ export interface ShippingInfo {
     cost: string;
 }
 
+export interface ShippingAddress {
+    firstName?: string;
+    lastName?: string;
+    company?: string;
+    addressLine1?: string;
+    addressLine2?: string;
+    city?: string;
+    subdivision?: string;
+    subdivisionFullname?: string;
+    country?: string;
+    countryFullname?: string;
+    postalCode?: string;
+    phone?: string;
+    streetAddress?: {
+        name?: string;
+        number?: string;
+        apt?: string;
+    };
+}
+
+// UPDATE: Also update your Address interface to include streetAddress and fullname fields
 export interface Address {
     firstName?: string;
     lastName?: string;
@@ -80,16 +131,16 @@ export interface Address {
     addressLine2?: string;
     city?: string;
     subdivision?: string;
+    subdivisionFullname?: string;
     country?: string;
+    countryFullname?: string;
     postalCode?: string;
     phone?: string;
-}
-
-export interface BillingInfo {
-    address?: Address;
-    paymentMethod?: string;
-    paymentProviderTransactionId?: string;
-    externalTransactionId?: string;
+    streetAddress?: {
+        name?: string;
+        number?: string;
+        apt?: string;
+    };
 }
 
 export interface RecipientInfo {
@@ -97,6 +148,15 @@ export interface RecipientInfo {
     lastName?: string;
     phone?: string;
     email?: string;
+    // Add contactDetails structure to match actual data
+    contactDetails?: {
+        firstName?: string;
+        lastName?: string;
+        phone?: string;
+        email?: string;
+        company?: string;
+        address?: Address;
+    };
 }
 
 export interface Order {
@@ -116,6 +176,8 @@ export interface Order {
     recipientInfo?: RecipientInfo;
     buyerNote?: string;
     rawOrder?: any;
+    customFields?: CustomField[];
+    extendedFields?: ExtendedFields;
 }
 
 export interface OrdersResponse {

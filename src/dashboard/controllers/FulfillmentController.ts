@@ -107,7 +107,6 @@ export class FulfillmentController {
      */
     clearForm() {
         this.uiStore.resetForm();
-        this.orderStore.selectOrder(null);
     }
 
     /**

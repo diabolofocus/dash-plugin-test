@@ -362,13 +362,32 @@ export const OrdersTable: React.FC = observer(() => {
         });
     };
 
+    const handleRowClick = (order: Order, event?: any) => {
+        // Remove all previous blue selections
+        document.querySelectorAll('tr').forEach(row => {
+            row.style.backgroundColor = '';
+            row.style.borderLeft = '';
+            row.querySelectorAll('td').forEach(cell => {
+                cell.style.backgroundColor = '';
+            });
+        });
 
+        // Get the clicked row element
+        const clickedRow = event?.currentTarget?.closest('tr');
 
-    const handleRowClick = (order: Order) => {
-        orderController.selectOrder(order);
-    };
+        if (clickedRow) {
+            // Apply blue styling directly
+            clickedRow.style.backgroundColor = '#e3f2fd';
+            clickedRow.style.borderLeft = '4px solid #1976d2';
 
-    const handleFulfillClick = (order: Order) => {
+            // Apply to all cells in the row
+            const cells = clickedRow.querySelectorAll('td');
+            cells.forEach(cell => {
+                cell.style.backgroundColor = '#e3f2fd';
+            });
+        }
+
+        // Update store for other functionality (OrderDetails panel)
         orderController.selectOrder(order);
     };
 
@@ -559,23 +578,11 @@ export const OrdersTable: React.FC = observer(() => {
                     <Table
                         data={tableData}
                         columns={columns}
-                        onRowClick={(rowData) => handleRowClick(rowData as Order)}
+                        onRowClick={(rowData, event) => handleRowClick(rowData as Order, event)}
                         showSelection={false}
                         horizontalScroll={false}
                         rowVerticalPadding="small"
                         skin="standard"
-                        isRowActive={(rowData) => orderStore.selectedOrder?._id === (rowData as Order)._id}
-                        dynamicRowClass={(rowData) => {
-                            const order = rowData as Order;
-                            const isSelected = orderStore.selectedOrder?._id === order._id;
-                            const isCanceled = order.status === 'CANCELED';
-
-                            let className = '';
-                            if (isSelected) className += 'selected-row ';
-                            if (isCanceled) className += 'canceled-row ';
-
-                            return className.trim();
-                        }}
                     >
                         <Table.Content />
                     </Table>
@@ -585,16 +592,14 @@ export const OrdersTable: React.FC = observer(() => {
 
             {/* Add some CSS styles for better visual feedback */}
             <style>{`
-                .selected-row {
-                    background-color: #f0f8ff !important;
-                }
-                .canceled-row {
-                    opacity: 0.6;
-                }
-                .canceled-row * {
-                    color: #9ca3af !important;
-                }
-            `}</style>
+    
+    .canceled-row {
+        opacity: 0.6;
+    }
+    .canceled-row * {
+        color: #9ca3af !important;
+    }
+`}</style>
         </Box>
     );
 });

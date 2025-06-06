@@ -1,4 +1,4 @@
-// components/Analytics/CompactAnalytics.tsx
+// Fixed CompactAnalytics.tsx
 import React, { useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import { Card, Text, DropdownBase, TextButton } from '@wix/design-system';
@@ -7,11 +7,66 @@ import { useStores } from '../../hooks/useStores';
 
 type TimePeriod = 'today' | 'yesterday' | '7days' | '30days' | 'thisweek' | 'thismonth' | '365days' | 'thisyear';
 
-
 interface TimePeriodOption {
     id: TimePeriod;
     value: string;
 }
+
+// Helper function to safely parse price from formatted string
+const parsePrice = (priceString: string): number => {
+    if (!priceString || typeof priceString !== 'string') {
+        return 0;
+    }
+
+    // Remove all non-numeric characters except dots and commas
+    let cleanPrice = priceString.replace(/[^\d,.-]/g, '');
+
+    // Handle European format (1.234,56) vs US format (1,234.56)
+    if (cleanPrice.includes(',') && cleanPrice.includes('.')) {
+        // Determine which is decimal separator
+        const lastComma = cleanPrice.lastIndexOf(',');
+        const lastDot = cleanPrice.lastIndexOf('.');
+
+        if (lastComma > lastDot) {
+            // European format: 1.234,56
+            cleanPrice = cleanPrice.replace(/\./g, '').replace(',', '.');
+        } else {
+            // US format: 1,234.56
+            cleanPrice = cleanPrice.replace(/,/g, '');
+        }
+    } else if (cleanPrice.includes(',') && !cleanPrice.includes('.')) {
+        // Could be thousand separator (1,234) or decimal (1,56)
+        const parts = cleanPrice.split(',');
+        if (parts.length === 2 && parts[1].length <= 2) {
+            // Decimal separator
+            cleanPrice = cleanPrice.replace(',', '.');
+        } else {
+            // Thousand separator
+            cleanPrice = cleanPrice.replace(/,/g, '');
+        }
+    }
+
+    const parsed = parseFloat(cleanPrice);
+    return isNaN(parsed) ? 0 : parsed;
+};
+
+// Helper function to extract currency symbol
+const extractCurrency = (priceString: string): string => {
+    if (!priceString) return '€';
+
+    const currencyMatch = priceString.match(/[€$£¥₹₽¢]/);
+    if (currencyMatch) {
+        return currencyMatch[0];
+    }
+
+    // Check for currency codes
+    const codeMatch = priceString.match(/[A-Z]{3}/);
+    if (codeMatch) {
+        return codeMatch[0];
+    }
+
+    return '€'; // Default
+};
 
 export const CompactAnalytics: React.FC = observer(() => {
     const { orderStore } = useStores();
@@ -28,33 +83,33 @@ export const CompactAnalytics: React.FC = observer(() => {
         { id: 'thisyear', value: 'This year' }
     ];
 
-
     const getDateRanges = (period: TimePeriod) => {
         const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
         switch (period) {
             case 'today':
-                const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                const startOfYesterday = new Date(startOfToday);
-                startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
                 return {
-                    current: startOfToday,
-                    previous: startOfYesterday,
-                    previousEnd: startOfToday
+                    current: today,
+                    previous: yesterday,
+                    previousEnd: today
                 };
             case 'yesterday':
-                const startOfYesterday2 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-                const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                const dayBeforeYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2);
+                const yesterdayStart = new Date(today);
+                yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+                const dayBefore = new Date(today);
+                dayBefore.setDate(dayBefore.getDate() - 2);
                 return {
-                    current: startOfYesterday2,
-                    previous: dayBeforeYesterday,
-                    previousEnd: startOfYesterday2
+                    current: yesterdayStart,
+                    previous: dayBefore,
+                    previousEnd: yesterdayStart
                 };
             case '7days':
-                const sevenDaysAgo = new Date();
+                const sevenDaysAgo = new Date(today);
                 sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-                const fourteenDaysAgo = new Date();
+                const fourteenDaysAgo = new Date(today);
                 fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
                 return {
                     current: sevenDaysAgo,
@@ -62,9 +117,9 @@ export const CompactAnalytics: React.FC = observer(() => {
                     previousEnd: sevenDaysAgo
                 };
             case '30days':
-                const thirtyDaysAgo = new Date();
+                const thirtyDaysAgo = new Date(today);
                 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                const sixtyDaysAgo = new Date();
+                const sixtyDaysAgo = new Date(today);
                 sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
                 return {
                     current: thirtyDaysAgo,
@@ -72,18 +127,19 @@ export const CompactAnalytics: React.FC = observer(() => {
                     previousEnd: thirtyDaysAgo
                 };
             case '365days':
-                const threeSixtyFiveAgo = new Date();
-                threeSixtyFiveAgo.setDate(threeSixtyFiveAgo.getDate() - 365);
-                const prevYearStart = new Date();
-                prevYearStart.setDate(prevYearStart.getDate() - 730);
+                const oneYearAgo = new Date(today);
+                oneYearAgo.setDate(oneYearAgo.getDate() - 365);
+                const twoYearsAgo = new Date(today);
+                twoYearsAgo.setDate(twoYearsAgo.getDate() - 730);
                 return {
-                    current: threeSixtyFiveAgo,
-                    previous: prevYearStart,
-                    previousEnd: threeSixtyFiveAgo
+                    current: oneYearAgo,
+                    previous: twoYearsAgo,
+                    previousEnd: oneYearAgo
                 };
             case 'thisweek':
-                const startOfWeek = new Date(now);
-                startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
+                const startOfWeek = new Date(today);
+                const dayOfWeek = startOfWeek.getDay();
+                startOfWeek.setDate(startOfWeek.getDate() - dayOfWeek); // Sunday
                 const startOfLastWeek = new Date(startOfWeek);
                 startOfLastWeek.setDate(startOfWeek.getDate() - 7);
                 return {
@@ -108,9 +164,9 @@ export const CompactAnalytics: React.FC = observer(() => {
                     previousEnd: startOfThisYear
                 };
             default:
-                const defaultThirtyDaysAgo = new Date();
+                const defaultThirtyDaysAgo = new Date(today);
                 defaultThirtyDaysAgo.setDate(defaultThirtyDaysAgo.getDate() - 30);
-                const defaultSixtyDaysAgo = new Date();
+                const defaultSixtyDaysAgo = new Date(today);
                 defaultSixtyDaysAgo.setDate(defaultSixtyDaysAgo.getDate() - 60);
                 return {
                     current: defaultThirtyDaysAgo,
@@ -122,6 +178,15 @@ export const CompactAnalytics: React.FC = observer(() => {
 
     const calculateMetricsForPeriod = (period: TimePeriod) => {
         const { current, previous, previousEnd } = getDateRanges(period);
+
+        // Debug logging
+        console.log('📊 Analytics Debug:', {
+            period,
+            currentStart: current.toISOString(),
+            previousStart: previous.toISOString(),
+            previousEnd: previousEnd.toISOString(),
+            totalOrders: orderStore.orders.length
+        });
 
         // Filter orders for current period
         const currentOrders = orderStore.orders.filter(order => {
@@ -135,47 +200,60 @@ export const CompactAnalytics: React.FC = observer(() => {
             return orderDate >= previous && orderDate < previousEnd;
         });
 
+        console.log('📊 Filtered Orders:', {
+            currentOrdersCount: currentOrders.length,
+            previousOrdersCount: previousOrders.length,
+            currentOrderIds: currentOrders.map(o => o.number),
+            previousOrderIds: previousOrders.map(o => o.number)
+        });
+
         // Calculate current period metrics
         let currentTotalSales = 0;
         let currency = '€';
 
         currentOrders.forEach(order => {
-            const priceMatch = order.total.match(/[\d,]+\.?\d*/);
-            if (priceMatch) {
-                const numericValue = parseFloat(priceMatch[0].replace(',', ''));
-                if (!isNaN(numericValue)) {
-                    currentTotalSales += numericValue;
-                }
+            const parsedPrice = parsePrice(order.total);
+            currentTotalSales += parsedPrice;
+
+            const orderCurrency = extractCurrency(order.total);
+            if (orderCurrency !== '€') {
+                currency = orderCurrency;
             }
 
-            const currencyMatch = order.total.match(/[€$£¥]/);
-            if (currencyMatch) {
-                currency = currencyMatch[0];
-            }
+            console.log('💰 Current Order:', {
+                orderNumber: order.number,
+                originalTotal: order.total,
+                parsedPrice,
+                runningTotal: currentTotalSales
+            });
         });
 
         // Calculate previous period metrics
         let previousTotalSales = 0;
-
         previousOrders.forEach(order => {
-            const priceMatch = order.total.match(/[\d,]+\.?\d*/);
-            if (priceMatch) {
-                const numericValue = parseFloat(priceMatch[0].replace(',', ''));
-                if (!isNaN(numericValue)) {
-                    previousTotalSales += numericValue;
-                }
-            }
+            const parsedPrice = parsePrice(order.total);
+            previousTotalSales += parsedPrice;
+
+            console.log('💰 Previous Order:', {
+                orderNumber: order.number,
+                originalTotal: order.total,
+                parsedPrice,
+                runningTotal: previousTotalSales
+            });
         });
 
         const currentAverageOrderValue = currentOrders.length > 0 ? currentTotalSales / currentOrders.length : 0;
         const previousAverageOrderValue = previousOrders.length > 0 ? previousTotalSales / previousOrders.length : 0;
 
-        // Calculate percentage changes
-        const salesChange = previousTotalSales > 0 ? ((currentTotalSales - previousTotalSales) / previousTotalSales) * 100 : 0;
-        const ordersChange = previousOrders.length > 0 ? ((currentOrders.length - previousOrders.length) / previousOrders.length) * 100 : 0;
-        const aovChange = previousAverageOrderValue > 0 ? ((currentAverageOrderValue - previousAverageOrderValue) / previousAverageOrderValue) * 100 : 0;
+        // Calculate percentage changes (handle division by zero)
+        const salesChange = previousTotalSales > 0 ? ((currentTotalSales - previousTotalSales) / previousTotalSales) * 100 :
+            currentTotalSales > 0 ? 100 : 0;
+        const ordersChange = previousOrders.length > 0 ? ((currentOrders.length - previousOrders.length) / previousOrders.length) * 100 :
+            currentOrders.length > 0 ? 100 : 0;
+        const aovChange = previousAverageOrderValue > 0 ? ((currentAverageOrderValue - previousAverageOrderValue) / previousAverageOrderValue) * 100 :
+            currentAverageOrderValue > 0 ? 100 : 0;
 
-        return {
+        const result = {
             sales: `${currency}${currentTotalSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             orders: currentOrders.length,
             avgOrderValue: `${currency}${currentAverageOrderValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
@@ -183,12 +261,27 @@ export const CompactAnalytics: React.FC = observer(() => {
             ordersChange: Math.round(ordersChange),
             aovChange: Math.round(aovChange)
         };
+
+        console.log('📊 Final Metrics:', {
+            period,
+            currentTotalSales,
+            previousTotalSales,
+            currentOrders: currentOrders.length,
+            previousOrders: previousOrders.length,
+            salesChange,
+            ordersChange,
+            aovChange,
+            result
+        });
+
+        return result;
     };
 
     const metrics = calculateMetricsForPeriod(selectedPeriod);
 
     const formatPercentageChange = (change: number) => {
-        const sign = change >= 0 ? '+' : '';
+        if (change === 0) return '0%';
+        const sign = change > 0 ? '+' : '';
         return `${sign}${change}%`;
     };
 
@@ -246,7 +339,7 @@ export const CompactAnalytics: React.FC = observer(() => {
                         )}
                     </div>
 
-                    {/* Right side - Time Period Selector (all the way to the right) */}
+                    {/* Right side - Time Period Selector */}
                     {orderStore.connectionStatus === 'connected' && (
                         <DropdownBase
                             selectedId={selectedPeriod}
@@ -270,3 +363,4 @@ export const CompactAnalytics: React.FC = observer(() => {
         </Card>
     );
 });
+

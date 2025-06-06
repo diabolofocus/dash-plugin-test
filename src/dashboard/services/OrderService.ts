@@ -1,4 +1,4 @@
-// services/OrderService.ts - UPDATED to support email parameter
+// services/OrderService.ts - UPDATED with infinite loading support
 
 import type { OrdersResponse, FulfillOrderParams, FulfillmentResponse, Order, OrderStatus, PaymentStatus } from '../types/Order';
 
@@ -8,6 +8,87 @@ interface ExtendedFulfillOrderParams extends FulfillOrderParams {
 }
 
 export class OrderService {
+    // 🔥 NEW: Method to fetch all orders and return paginated chunks
+    async fetchAllOrders(): Promise<{ success: boolean; orders: Order[]; totalCount: number; error?: string }> {
+        const maxRetries = 3;
+        let lastError: any;
+        const isProd = !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
+        let allOrders: Order[] = [];
+        let cursor = '';
+        let hasMore = true;
+
+        console.log(`🌍 [${isProd ? 'PROD' : 'DEV'}] OrderService.fetchAllOrders starting...`);
+
+        try {
+            // Fetch all orders using pagination
+            while (hasMore) {
+                for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                    try {
+                        console.log(`🚀 [${isProd ? 'PROD' : 'DEV'}] Fetching batch with cursor: ${cursor}, attempt ${attempt}/${maxRetries}`);
+
+                        const backendModule = await import('../../backend/orders-api.web');
+                        const result = await backendModule.testOrdersConnection({
+                            limit: 200, // Fetch larger chunks from backend
+                            cursor
+                        });
+
+                        if (result.success && result.orders) {
+                            const transformedOrders = result.orders.map(this.transformOrderFromBackend);
+                            allOrders = [...allOrders, ...transformedOrders];
+
+                            // Update pagination
+                            hasMore = result.pagination?.hasNext || false;
+                            cursor = result.pagination?.nextCursor || '';
+
+                            console.log(`✅ [${isProd ? 'PROD' : 'DEV'}] Fetched batch: ${transformedOrders.length} orders, total: ${allOrders.length}, hasMore: ${hasMore}`);
+                            break; // Success, break retry loop
+                        } else {
+                            throw new Error(result.error || 'Failed to fetch orders');
+                        }
+
+                    } catch (currentError: any) {
+                        lastError = currentError;
+                        const errorMsg = currentError instanceof Error ? currentError.message : String(currentError);
+                        console.error(`❌ [${isProd ? 'PROD' : 'DEV'}] Fetch batch attempt ${attempt}/${maxRetries} failed:`, errorMsg);
+
+                        if (attempt < maxRetries) {
+                            const waitTime = Math.pow(2, attempt) * 1000;
+                            console.log(`⏳ [${isProd ? 'PROD' : 'DEV'}] Waiting ${waitTime}ms before retry...`);
+                            await new Promise(resolve => setTimeout(resolve, waitTime));
+                        } else {
+                            // All retries failed for this batch
+                            hasMore = false;
+                            if (allOrders.length === 0) {
+                                // If we haven't got any orders yet, return error
+                                throw lastError;
+                            }
+                            // If we have some orders, just stop fetching more
+                        }
+                    }
+                }
+            }
+
+            console.log(`✅ [${isProd ? 'PROD' : 'DEV'}] Successfully fetched all orders: ${allOrders.length} total`);
+
+            return {
+                success: true,
+                orders: allOrders,
+                totalCount: allOrders.length
+            };
+
+        } catch (error: any) {
+            const finalErrorMsg = error instanceof Error ? error.message : String(error);
+            console.error(`💥 [${isProd ? 'PROD' : 'DEV'}] fetchAllOrders failed:`, finalErrorMsg);
+
+            return {
+                success: false,
+                orders: [],
+                totalCount: 0,
+                error: finalErrorMsg
+            };
+        }
+    }
+
     async fetchOrders({ limit = 50, cursor = '' }): Promise<OrdersResponse> {
         const maxRetries = 3;
         let lastError: any;
