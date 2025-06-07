@@ -1,5 +1,5 @@
 // components/OrdersTable/OrdersTable.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { observer } from 'mobx-react-lite';
 import { Box, Text, Heading, Dropdown, Search, Button, Loader, Table, TableActionCell, TableToolbar } from '@wix/design-system';
 import * as Icons from '@wix/wix-ui-icons-common';
@@ -16,47 +16,45 @@ import { orders } from '@wix/ecom';
 
 
 export const OrdersTable: React.FC = observer(() => {
+
     const { orderStore, uiStore } = useStores();
     const orderController = useOrderController();
     const [selectedStatusFilter, setSelectedStatusFilter] = useState(null);
     const totalProductCount = 300; // Adjust based on your needs
     const containerRef = useRef(null);
     const [container, setContainer] = useState(null);
-    const [displayedOrders, setDisplayedOrders] = useState<Order[]>([]);
-    const [isLoadingMore, setIsLoadingMore] = useState(false);
-    const itemsPerPage = 20;
+
 
     // Initialize container ref
     useEffect(() => {
         setContainer(containerRef);
     }, []);
 
-    // Update displayed orders when orderStore changes
-    // Update displayed orders when orderStore changes
-    // Update displayed orders when orderStore changes
-    // In your OrdersTable.tsx, update the useEffect:
+    // Add scroll detection for infinite loading
+    const handleScroll = useCallback(() => {
+        if (!containerRef.current || !orderStore.hasMoreOrders || orderStore.isLoadingMore) {
+            return;
+        }
+
+        const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+        const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
+
+        // Load more when user scrolls 80% down
+        if (scrollPercentage > 0.8) {
+            console.log('🔄 User scrolled near bottom, loading more orders...');
+            orderController.loadMoreOrders();
+        }
+    }, [orderStore.hasMoreOrders, orderStore.isLoadingMore, orderController]);
+
+    // Add scroll listener
     useEffect(() => {
-        const statusFilteredOrders = getFilteredOrdersByStatus(orderStore.filteredOrders, selectedStatusFilter);
-        // Only show first batch for display, but search/analytics work on full dataset
-        setDisplayedOrders(statusFilteredOrders.slice(0, itemsPerPage));
-    }, [orderStore.filteredOrders, selectedStatusFilter]);
+        const container = containerRef.current;
+        if (container) {
+            container.addEventListener('scroll', handleScroll);
+            return () => container.removeEventListener('scroll', handleScroll);
+        }
+    }, [handleScroll]);
 
-    const loadMoreOrders = async () => {
-        if (isLoadingMore) return;
-
-        setIsLoadingMore(true);
-
-        // Simulate loading delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        const statusFilteredOrders = getFilteredOrdersByStatus(orderStore.filteredOrders, selectedStatusFilter);
-
-        const currentLength = displayedOrders.length;
-        const nextBatch = statusFilteredOrders.slice(currentLength, currentLength + itemsPerPage);
-
-        setDisplayedOrders(prevOrders => [...prevOrders, ...nextBatch]);
-        setIsLoadingMore(false);
-    };
 
     const statusFilterOptions = [
         { id: 'unfulfilled', value: 'Unfulfilled' },
@@ -543,8 +541,7 @@ export const OrdersTable: React.FC = observer(() => {
     ];
 
     const statusFilteredOrders = getFilteredOrdersByStatus(orderStore.filteredOrders, selectedStatusFilter);
-    const hasMore = displayedOrders.length < statusFilteredOrders.length;
-    const tableData = displayedOrders.map(order => ({
+    const tableData = statusFilteredOrders.map(order => ({
         id: order._id,
         ...order
     }));
@@ -570,6 +567,9 @@ export const OrdersTable: React.FC = observer(() => {
                 >
                     <Heading size="medium">
                         Recent Orders ({statusFilteredOrders.length})
+                        {orderStore.loadingStatus && (
+                            <Text size="small" secondary> {orderStore.loadingStatus}</Text>
+                        )}
                     </Heading>
                 </Box>
 
@@ -609,8 +609,12 @@ export const OrdersTable: React.FC = observer(() => {
 
                 {/* Table */}
                 <div
-
                     ref={containerRef}
+                    style={{
+                        maxHeight: '70vh',
+                        overflowY: 'auto',
+                        overflowX: 'hidden'
+                    }}
                 >
                     {statusFilteredOrders.length === 0 ? (
                         <Box align="center" paddingTop="40px" paddingBottom="40px">
@@ -625,20 +629,22 @@ export const OrdersTable: React.FC = observer(() => {
                             horizontalScroll={false}
                             rowVerticalPadding="small"
                             skin="standard"
-                            loadMore={loadMoreOrders}
-                            infiniteScroll
-                            hasMore={hasMore}
-                            itemsPerPage={itemsPerPage}
-                            totalSelectableCount={statusFilteredOrders.length}
-                            scrollElement={container && container.current}
-                            loader={
+                        >
+                            <Table.Content />
+                            {/* Add loading indicator for "load more" */}
+                            {orderStore.isLoadingMore && (
                                 <Box align="center" padding="24px 0px">
                                     <Loader size="small" />
+                                    <Text size="small" secondary>Loading more orders...</Text>
                                 </Box>
-                            }
-                        >
+                            )}
 
-                            <Table.Content />
+                            {/* Show end message when no more orders */}
+                            {!orderStore.hasMoreOrders && orderStore.orders.length > 0 && (
+                                <Box align="center" padding="24px 0px">
+                                    <Text size="small" secondary>All orders loaded ({orderStore.orders.length} total)</Text>
+                                </Box>
+                            )}
                         </Table>
                     )}
                 </div>

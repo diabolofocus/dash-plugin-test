@@ -1,8 +1,42 @@
 // stores/OrderStore.ts - FIXED with proper imports and missing properties
-import { makeAutoObservable } from 'mobx';
+import { makeAutoObservable, observable, action } from 'mobx';
 import type { Order, OrderStatus, ConnectionStatus } from '../types/Order'; // 🔥 FIXED: Import ConnectionStatus
 
 export class OrderStore {
+
+    // Add these properties to OrderStore.ts
+    @observable hasMoreOrders: boolean = false;
+
+    @observable nextCursor: string = '';
+    @observable isLoadingMore: boolean = false;
+    @observable loadingStatus: string = '';
+
+    @action
+    setHasMoreOrders(hasMore: boolean) {
+        this.hasMoreOrders = hasMore;
+    }
+
+    @action
+    setNextCursor(cursor: string) {
+        this.nextCursor = cursor;
+    }
+
+    @action
+    setIsLoadingMore(loading: boolean) {
+        this.isLoadingMore = loading;
+    }
+
+    @action
+    setLoadingStatus(status: string) {
+        this.loadingStatus = status;
+    }
+
+    @action
+    appendOrders(newOrders: Order[]) {
+        this.orders = [...this.orders, ...newOrders];
+    }
+
+
     orders: Order[] = [];
     selectedOrder: Order | null = null;
     connectionStatus: ConnectionStatus = 'disconnected'; // 🔥 FIXED: Use proper type

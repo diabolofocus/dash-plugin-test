@@ -13,45 +13,83 @@ export class OrderController {
         private orderService: OrderService
     ) { }
 
-    // Update your OrderController.ts loadOrders method
+    // Replace your loadOrders method in OrderController.ts
     async loadOrders() {
         const isDev = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1');
 
-        console.log(`🚀 [${isDev ? 'DEV' : 'PROD'}] Starting progressive order loading...`);
+        console.log(`🚀 [${isDev ? 'DEV' : 'PROD'}] Starting chunked order loading (200 initial)...`);
 
         try {
             this.uiStore.setLoading(true);
             this.orderStore.setConnectionStatus('connecting');
+            this.orderStore.setLoadingStatus('Loading orders...');
 
-            // Progressive loading with immediate UI updates
-            const result = await this.orderService.fetchOrdersProgressive((orders, totalLoaded) => {
-                // Update UI immediately with each batch
+            // Load initial 200 orders with progress updates
+            const result = await this.orderService.fetchOrdersChunked(200, (orders, totalLoaded, hasMore) => {
+                // Update orders immediately with each batch
                 this.orderStore.setOrders(orders);
-
-
+                this.orderStore.setLoadingStatus(`Loading orders... (${totalLoaded})`);
 
                 // Set connected after first batch so UI is responsive
                 if (totalLoaded >= 100) {
                     this.orderStore.setConnectionStatus('connected');
-                    this.uiStore.setLoading(false); // Allow user to interact while loading continues
+                    this.uiStore.setLoading(false);
                 }
             });
 
-            console.log(`📊 [${isDev ? 'DEV' : 'PROD'}] Progressive loading complete: ${result.totalCount} orders`);
+            console.log(`📊 [${isDev ? 'DEV' : 'PROD'}] Initial chunk complete: ${result.totalCount} orders, hasMore: ${result.hasMore}`);
 
             if (result.success) {
                 this.orderStore.setOrders(result.orders);
+                this.orderStore.setHasMoreOrders(result.hasMore);
+                this.orderStore.setNextCursor(result.nextCursor || '');
                 this.orderStore.setConnectionStatus('connected');
-                this.showToast(`✅ Loaded all ${result.totalCount} orders!`, 'success');
+                this.orderStore.setLoadingStatus('');
+
+                console.log(`✅ [${isDev ? 'DEV' : 'PROD'}] Loaded initial ${result.totalCount} orders, can load more: ${result.hasMore}`);
             } else {
                 this.handleLoadError(new Error(result.error || 'Failed to load orders'));
             }
 
         } catch (error) {
-            console.error(`❌ [${isDev ? 'DEV' : 'PROD'}] Error in progressive loading:`, error);
+            console.error(`❌ [${isDev ? 'DEV' : 'PROD'}] Error in chunked loading:`, error);
+            this.orderStore.setLoadingStatus('');
             this.handleLoadError(error);
         } finally {
             this.uiStore.setLoading(false);
+        }
+    }
+
+    // Add this method to OrderController.ts
+    async loadMoreOrders() {
+        if (!this.orderStore.hasMoreOrders || this.orderStore.isLoadingMore) {
+            return;
+        }
+
+        const isDev = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1');
+        console.log(`📦 [${isDev ? 'DEV' : 'PROD'}] Loading more orders...`);
+
+        try {
+            this.orderStore.setIsLoadingMore(true);
+            this.orderStore.setLoadingStatus('Loading more orders...');
+
+            const result = await this.orderService.fetchMoreOrders(this.orderStore.nextCursor, 200);
+
+            if (result.success) {
+                this.orderStore.appendOrders(result.orders);
+                this.orderStore.setHasMoreOrders(result.hasMore);
+                this.orderStore.setNextCursor(result.nextCursor || '');
+
+                console.log(`✅ [${isDev ? 'DEV' : 'PROD'}] Loaded ${result.orders.length} more orders, total: ${this.orderStore.orders.length}`);
+            } else {
+                console.error(`❌ [${isDev ? 'DEV' : 'PROD'}] Failed to load more orders:`, result.error);
+            }
+
+        } catch (error) {
+            console.error(`❌ [${isDev ? 'DEV' : 'PROD'}] Error loading more orders:`, error);
+        } finally {
+            this.orderStore.setIsLoadingMore(false);
+            this.orderStore.setLoadingStatus('');
         }
     }
 
