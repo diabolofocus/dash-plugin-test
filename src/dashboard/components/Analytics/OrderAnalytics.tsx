@@ -34,73 +34,59 @@ export const OrderAnalytics: React.FC = observer(() => {
         return match ? match[0] : '€';
     };
 
-    const calculateLast30DaysAnalytics = (): AnalyticsData => {
+    // Replace the calculateLast30DaysAnalytics function in OrderAnalytics.tsx
+    const calculateAnalytics = (): AnalyticsData => {
+        // Try to use Analytics API data first
+        if (orderStore.formattedAnalytics && !orderStore.analyticsError) {
+            console.log('📊 Using Analytics API data');
+
+            const apiAnalytics = orderStore.formattedAnalytics;
+
+            return {
+                totalSales: apiAnalytics.totalSales,
+                totalOrders: apiAnalytics.totalOrders,
+                averageOrderValue: apiAnalytics.averageOrderValue,
+                currency: apiAnalytics.currency,
+                fulfilledOrders: 0, // Analytics API doesn't provide this
+                pendingOrders: 0    // Analytics API doesn't provide this
+            };
+        }
+
+        // Fallback to order-based calculation
+        console.log('📊 Falling back to order-based analytics');
+
         const now = new Date();
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(now.getDate() - 30);
-        // Reset time to start of day for accurate comparison
         thirtyDaysAgo.setHours(0, 0, 0, 0);
 
-        console.log('📊 OrderAnalytics Debug:', {
-            now: now.toISOString(),
-            thirtyDaysAgo: thirtyDaysAgo.toISOString(),
-            totalOrders: orderStore.orders.length
-        });
-
-        // Filter orders from last 30 days
+        // Your existing calculation logic...
         const last30DaysOrders = orderStore.orders.filter(order => {
             const orderDate = new Date(order._createdDate);
-            const isInRange = orderDate >= thirtyDaysAgo;
-
-            console.log('📅 Order Date Check:', {
-                orderNumber: order.number,
-                orderDate: orderDate.toISOString(),
-                thirtyDaysAgo: thirtyDaysAgo.toISOString(),
-                isInRange
-            });
-
-            return isInRange;
+            return orderDate >= thirtyDaysAgo;
         });
 
-        console.log('📊 Filtered Orders:', {
-            total: orderStore.orders.length,
-            last30Days: last30DaysOrders.length,
-            orderNumbers: last30DaysOrders.map(o => o.number)
-        });
-
-        // Calculate metrics
+        // Rest of your existing logic...
         let totalSales = 0;
-        let currency = '€'; // Default currency
+        let currency = '€';
 
         last30DaysOrders.forEach(order => {
             const parsedPrice = parsePrice(order.total);
             totalSales += parsedPrice;
-
             const orderCurrency = extractCurrency(order.total);
             if (orderCurrency !== '€') {
                 currency = orderCurrency;
             }
-
-            console.log('💰 Processing Order:', {
-                orderNumber: order.number,
-                originalTotal: order.total,
-                parsedPrice,
-                runningTotal: totalSales
-            });
         });
 
         const totalOrders = last30DaysOrders.length;
         const averageOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
-
-        const fulfilledOrders = last30DaysOrders.filter(order =>
-            order.status === 'FULFILLED'
-        ).length;
-
+        const fulfilledOrders = last30DaysOrders.filter(order => order.status === 'FULFILLED').length;
         const pendingOrders = last30DaysOrders.filter(order =>
             order.status === 'NOT_FULFILLED' || order.status === 'PARTIALLY_FULFILLED'
         ).length;
 
-        const result = {
+        return {
             totalSales,
             totalOrders,
             averageOrderValue,
@@ -108,13 +94,12 @@ export const OrderAnalytics: React.FC = observer(() => {
             fulfilledOrders,
             pendingOrders
         };
-
-        console.log('📊 Final Analytics:', result);
-
-        return result;
     };
 
-    const analytics = calculateLast30DaysAnalytics();
+    // Update your component to use this new function
+    const analytics = calculateAnalytics();
+
+
 
     const formatCurrency = (amount: number, currency: string): string => {
         return `${currency}${amount.toLocaleString('en-US', {

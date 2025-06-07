@@ -285,7 +285,7 @@ export class OrderService {
                 }
             } else {
                 console.warn(`⚠️ [${isProd ? 'PROD' : 'DEV'}] Frontend: getSingleOrder not available, using fallback`);
-                const allOrdersResult = await this.fetchOrders({ limit: 200 });
+                const allOrdersResult = await this.fetchOrders({ limit: 100 });
 
                 if (allOrdersResult.success) {
                     const foundOrder = allOrdersResult.orders.find(order => order._id === orderId);

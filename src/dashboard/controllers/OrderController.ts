@@ -1,4 +1,5 @@
 // controllers/OrderController.ts - FIXED pagination logic
+import { AnalyticsService } from '../services/AnalyticsService';
 import { dashboard } from '@wix/dashboard';
 import type { OrderStore } from '../stores/OrderStore';
 import type { UIStore } from '../stores/UIStore';
@@ -17,15 +18,15 @@ export class OrderController {
     async loadOrders() {
         const isDev = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1');
 
-        console.log(`🚀 [${isDev ? 'DEV' : 'PROD'}] Starting chunked order loading (200 initial)...`);
+        console.log(`🚀 [${isDev ? 'DEV' : 'PROD'}] Starting chunked order loading (100 initial)...`);
 
         try {
             this.uiStore.setLoading(true);
             this.orderStore.setConnectionStatus('connecting');
             this.orderStore.setLoadingStatus('Loading orders...');
 
-            // Load initial 200 orders with progress updates
-            const result = await this.orderService.fetchOrdersChunked(200, (orders, totalLoaded, hasMore) => {
+            // Load initial 100 orders with progress updates
+            const result = await this.orderService.fetchOrdersChunked(100, (orders, totalLoaded, hasMore) => {
                 // Update orders immediately with each batch
                 this.orderStore.setOrders(orders);
                 this.orderStore.setLoadingStatus(`Loading orders... (${totalLoaded})`);
@@ -73,7 +74,7 @@ export class OrderController {
             this.orderStore.setIsLoadingMore(true);
             this.orderStore.setLoadingStatus('Loading more orders...');
 
-            const result = await this.orderService.fetchMoreOrders(this.orderStore.nextCursor, 200);
+            const result = await this.orderService.fetchMoreOrders(this.orderStore.nextCursor, 100);
 
             if (result.success) {
                 this.orderStore.appendOrders(result.orders);
@@ -206,6 +207,60 @@ export class OrderController {
             this.uiStore.resetForm();
             this.uiStore.setSubmitting(false);
         }
+    }
+
+    // Add this method to OrderController.ts
+    async loadAnalytics(period: 'today' | 'yesterday' | '7days' | '30days' | '365days' = '30days') {
+        const isDev = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1');
+
+        console.log(`📊 [${isDev ? 'DEV' : 'PROD'}] Loading analytics for period: ${period}...`);
+
+        try {
+            this.orderStore.setAnalyticsLoading(true);
+            this.orderStore.setAnalyticsError(null);
+
+            const analyticsService = new AnalyticsService();
+            const dateRange = analyticsService.getDateRange(period);
+
+            // Get site ID - you'll need to implement this based on your setup
+            const siteId = await this.getSiteId();
+
+            const analyticsData = await analyticsService.getMultipleAnalytics(siteId, dateRange);
+
+            console.log(`📊 [${isDev ? 'DEV' : 'PROD'}] Analytics loaded:`, analyticsData);
+
+            this.orderStore.setAnalyticsData(analyticsData);
+
+        } catch (error: any) {
+            console.error(`❌ [${isDev ? 'DEV' : 'PROD'}] Analytics loading failed:`, error);
+            this.orderStore.setAnalyticsError(error.message);
+
+            // Fallback to order-based analytics
+            console.log(`🔄 [${isDev ? 'DEV' : 'PROD'}] Falling back to order-based analytics...`);
+            this.calculateAnalyticsFromOrders(period);
+
+        } finally {
+            this.orderStore.setAnalyticsLoading(false);
+        }
+    }
+
+    // Fallback method using existing order data
+    private calculateAnalyticsFromOrders(period: string) {
+        // Use your existing analytics calculation as fallback
+        const analytics = this.orderStore.last30DaysAnalytics; // Your existing method
+
+        this.orderStore.setAnalyticsData({
+            TOTAL_SALES: { total: analytics.totalSales },
+            TOTAL_ORDERS: { total: analytics.orderCount },
+            TOTAL_SESSIONS: { total: 0 } // Not available from orders
+        });
+    }
+
+    // You'll need to implement this based on your setup
+    private async getSiteId(): Promise<string> {
+        // This depends on how you get the site ID in your app
+        // It might be from URL params, local storage, or an API call
+        throw new Error('getSiteId not implemented - add your site ID logic here');
     }
 
     updateSearchQuery(query: string) {

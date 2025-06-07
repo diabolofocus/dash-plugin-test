@@ -4,6 +4,43 @@ import type { Order, OrderStatus, ConnectionStatus } from '../types/Order'; // ð
 
 export class OrderStore {
 
+    // Add these analytics properties to OrderStore.ts
+    @observable analyticsData: any = null;
+    @observable analyticsLoading: boolean = false;
+    @observable analyticsError: string | null = null;
+
+    @action
+    setAnalyticsData(data: any) {
+        this.analyticsData = data;
+    }
+
+    @action
+    setAnalyticsLoading(loading: boolean) {
+        this.analyticsLoading = loading;
+    }
+
+    @action
+    setAnalyticsError(error: string | null) {
+        this.analyticsError = error;
+    }
+
+    // Getter for formatted analytics
+    get formattedAnalytics() {
+        if (!this.analyticsData) return null;
+
+        const totalSales = this.analyticsData.TOTAL_SALES?.total || 0;
+        const totalOrders = this.analyticsData.TOTAL_ORDERS?.total || 0;
+        const totalSessions = this.analyticsData.TOTAL_SESSIONS?.total || 0;
+
+        return {
+            totalSales: totalSales,
+            totalOrders: totalOrders,
+            totalSessions: totalSessions,
+            averageOrderValue: totalOrders > 0 ? totalSales / totalOrders : 0,
+            currency: 'â‚¬' // You might want to get this from site settings
+        };
+    }
+
     // Add these properties to OrderStore.ts
     @observable hasMoreOrders: boolean = false;
 

@@ -18,7 +18,13 @@ export const OrderFulfillmentPage: React.FC = observer(() => {
 
   useEffect(() => {
     console.log('OrderFulfillmentPage: Loading orders...');
-    orderController.loadOrders();
+
+    const initializeData = async () => {
+      await orderController.loadOrders();
+      await orderController.loadAnalytics('30days'); // Load 30-day analytics
+    };
+
+    initializeData();
   }, [orderController]);
 
   if (uiStore.loading) {
