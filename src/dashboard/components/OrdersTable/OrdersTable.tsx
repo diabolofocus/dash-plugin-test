@@ -1,5 +1,5 @@
 // components/OrdersTable/OrdersTable.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { observer } from 'mobx-react-lite';
 import { Box, Text, Heading, Dropdown, Search, Button, Loader, Table, TableActionCell, TableToolbar } from '@wix/design-system';
 import * as Icons from '@wix/wix-ui-icons-common';
@@ -19,6 +19,45 @@ export const OrdersTable: React.FC = observer(() => {
     const { orderStore, uiStore } = useStores();
     const orderController = useOrderController();
     const [selectedStatusFilter, setSelectedStatusFilter] = useState(null);
+    const totalProductCount = 300; // Adjust based on your needs
+    const containerRef = useRef(null);
+    const [container, setContainer] = useState(null);
+    const [displayedOrders, setDisplayedOrders] = useState<Order[]>([]);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const itemsPerPage = 20;
+
+    // Initialize container ref
+    useEffect(() => {
+        setContainer(containerRef);
+    }, []);
+
+    // Update displayed orders when orderStore changes
+    // Update displayed orders when orderStore changes
+    // Update displayed orders when orderStore changes
+    // In your OrdersTable.tsx, update the useEffect:
+    useEffect(() => {
+        const statusFilteredOrders = getFilteredOrdersByStatus(orderStore.filteredOrders, selectedStatusFilter);
+        // Only show first batch for display, but search/analytics work on full dataset
+        setDisplayedOrders(statusFilteredOrders.slice(0, itemsPerPage));
+    }, [orderStore.filteredOrders, selectedStatusFilter]);
+
+    const loadMoreOrders = async () => {
+        if (isLoadingMore) return;
+
+        setIsLoadingMore(true);
+
+        // Simulate loading delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        const statusFilteredOrders = getFilteredOrdersByStatus(orderStore.filteredOrders, selectedStatusFilter);
+
+        const currentLength = displayedOrders.length;
+        const nextBatch = statusFilteredOrders.slice(currentLength, currentLength + itemsPerPage);
+
+        setDisplayedOrders(prevOrders => [...prevOrders, ...nextBatch]);
+        setIsLoadingMore(false);
+    };
+
     const statusFilterOptions = [
         { id: 'unfulfilled', value: 'Unfulfilled' },
         { id: 'unpaid', value: 'Unpaid' },
@@ -504,9 +543,8 @@ export const OrdersTable: React.FC = observer(() => {
     ];
 
     const statusFilteredOrders = getFilteredOrdersByStatus(orderStore.filteredOrders, selectedStatusFilter);
-
-    // Prepare data for the table
-    const tableData = statusFilteredOrders.map(order => ({
+    const hasMore = displayedOrders.length < statusFilteredOrders.length;
+    const tableData = displayedOrders.map(order => ({
         id: order._id,
         ...order
     }));
@@ -570,23 +608,40 @@ export const OrdersTable: React.FC = observer(() => {
                 </Box>
 
                 {/* Table */}
-                {statusFilteredOrders.length === 0 ? (
-                    <Box align="center" paddingTop="40px" paddingBottom="40px">
-                        <Text secondary>No orders found</Text>
-                    </Box>
-                ) : (
-                    <Table
-                        data={tableData}
-                        columns={columns}
-                        onRowClick={(rowData, event) => handleRowClick(rowData as Order, event)}
-                        showSelection={false}
-                        horizontalScroll={false}
-                        rowVerticalPadding="small"
-                        skin="standard"
-                    >
-                        <Table.Content />
-                    </Table>
-                )}
+                <div
+
+                    ref={containerRef}
+                >
+                    {statusFilteredOrders.length === 0 ? (
+                        <Box align="center" paddingTop="40px" paddingBottom="40px">
+                            <Text secondary>No orders found</Text>
+                        </Box>
+                    ) : (
+                        <Table
+                            showSelection
+                            data={tableData}
+                            columns={columns}
+                            onRowClick={(rowData, event) => handleRowClick(rowData as Order, event)}
+                            horizontalScroll={false}
+                            rowVerticalPadding="small"
+                            skin="standard"
+                            loadMore={loadMoreOrders}
+                            infiniteScroll
+                            hasMore={hasMore}
+                            itemsPerPage={itemsPerPage}
+                            totalSelectableCount={statusFilteredOrders.length}
+                            scrollElement={container && container.current}
+                            loader={
+                                <Box align="center" padding="24px 0px">
+                                    <Loader size="small" />
+                                </Box>
+                            }
+                        >
+
+                            <Table.Content />
+                        </Table>
+                    )}
+                </div>
 
             </Box>
 

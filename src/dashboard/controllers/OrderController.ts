@@ -13,43 +13,42 @@ export class OrderController {
         private orderService: OrderService
     ) { }
 
+    // Update your OrderController.ts loadOrders method
     async loadOrders() {
         const isDev = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1');
 
-        console.log(`🚀 [${isDev ? 'DEV' : 'PROD'}] OrderController: Starting loadOrders`);
+        console.log(`🚀 [${isDev ? 'DEV' : 'PROD'}] Starting progressive order loading...`);
 
         try {
             this.uiStore.setLoading(true);
             this.orderStore.setConnectionStatus('connecting');
 
-            console.log(`📞 [${isDev ? 'DEV' : 'PROD'}] OrderController: Calling orderService.fetchOrders`);
+            // Progressive loading with immediate UI updates
+            const result = await this.orderService.fetchOrdersProgressive((orders, totalLoaded) => {
+                // Update UI immediately with each batch
+                this.orderStore.setOrders(orders);
 
-            const result = await this.orderService.fetchOrders({
-                limit: 50,
-                cursor: undefined
+
+
+                // Set connected after first batch so UI is responsive
+                if (totalLoaded >= 100) {
+                    this.orderStore.setConnectionStatus('connected');
+                    this.uiStore.setLoading(false); // Allow user to interact while loading continues
+                }
             });
 
-            console.log(`📊 [${isDev ? 'DEV' : 'PROD'}] OrderController: Response received:`, {
-                success: result.success,
-                orderCount: result.orders?.length || 0,
-                message: result.message?.substring(0, 100) + '...'
-            });
+            console.log(`📊 [${isDev ? 'DEV' : 'PROD'}] Progressive loading complete: ${result.totalCount} orders`);
 
-            if (result.success && result.orders && result.orders.length > 0) {
-                console.log(`📥 [${isDev ? 'DEV' : 'PROD'}] OrderController: Setting ${result.orders.length} orders`);
+            if (result.success) {
                 this.orderStore.setOrders(result.orders);
-
                 this.orderStore.setConnectionStatus('connected');
-
-                console.log(`🏁 [${isDev ? 'DEV' : 'PROD'}] OrderController: Successfully loaded ${result.orders.length} orders`);
-
+                this.showToast(`✅ Loaded all ${result.totalCount} orders!`, 'success');
             } else {
-                console.warn(`⚠️ [${isDev ? 'DEV' : 'PROD'}] OrderController: No orders found, using demo data`);
-                this.handleNoOrdersFound(result.message);
+                this.handleLoadError(new Error(result.error || 'Failed to load orders'));
             }
 
         } catch (error) {
-            console.error(`❌ [${isDev ? 'DEV' : 'PROD'}] OrderController: Error loading orders:`, error);
+            console.error(`❌ [${isDev ? 'DEV' : 'PROD'}] Error in progressive loading:`, error);
             this.handleLoadError(error);
         } finally {
             this.uiStore.setLoading(false);

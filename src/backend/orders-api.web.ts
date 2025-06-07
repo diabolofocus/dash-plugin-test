@@ -5,9 +5,6 @@ import { webMethod, Permissions } from '@wix/web-methods';
 // Import the simplified elevated web methods
 import {
   smartFulfillOrderElevated,
-  createFulfillmentElevated,
-  updateFulfillmentElevated,
-  getFulfillmentsElevated
 } from './fulfillment-elevated.web';
 
 // Define the email info interface
@@ -110,10 +107,10 @@ export const fulfillOrderInWix = webMethod(
 // Keep your existing methods unchanged...
 export const testOrdersConnection = webMethod(
   Permissions.Anyone,
-  async ({ limit = 50, cursor = '' }: { limit?: number; cursor?: string } = {}) => {
+  async ({ limit = 3, cursor = '' }: { limit?: number; cursor?: string } = {}) => {
     const maxRetries = 3;
     let lastError: any;
-
+    3
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log(`🚀 Attempt ${attempt}/${maxRetries} - Starting testOrdersConnection`);

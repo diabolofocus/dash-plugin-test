@@ -30,7 +30,7 @@ export class WixOrdersService {
             await this.initializeOrdersAPI();
         }
 
-        const { limit = 50, cursor, filter } = options;
+        const { limit = 1000, cursor, filter } = options;
 
         try {
             const searchParams = {

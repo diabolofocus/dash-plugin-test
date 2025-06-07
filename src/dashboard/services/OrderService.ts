@@ -192,6 +192,65 @@ export class OrderService {
         };
     }
 
+    // Add this method to your OrderService class
+    // Add this to OrderService.ts - loads orders progressively while showing UI immediately
+    async fetchOrdersProgressive(onProgress?: (orders: Order[], totalLoaded: number) => void): Promise<{ success: boolean; orders: Order[]; totalCount: number; error?: string }> {
+        const isProd = !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
+        let allOrders: Order[] = [];
+        let cursor = '';
+        let hasMore = true;
+        const batchSize = 100;
+
+        console.log(`🌍 [${isProd ? 'PROD' : 'DEV'}] Starting progressive order loading...`);
+
+        try {
+            while (hasMore) {
+                const backendModule = await import('../../backend/orders-api.web');
+                const result = await backendModule.testOrdersConnection({
+                    limit: batchSize,
+                    cursor: cursor
+                });
+
+                if (result.success && result.orders) {
+                    const transformedOrders = result.orders.map(this.transformOrderFromBackend);
+                    allOrders = [...allOrders, ...transformedOrders];
+
+                    // Immediately update UI with current batch
+                    if (onProgress) {
+                        onProgress(allOrders, allOrders.length);
+                    }
+
+                    hasMore = result.pagination?.hasNext || false;
+                    cursor = result.pagination?.nextCursor || '';
+
+                    console.log(`📦 Progressive batch: ${transformedOrders.length} orders, total: ${allOrders.length}`);
+
+                    // Reduce delay for faster loading
+                    if (hasMore) {
+                        await new Promise(resolve => setTimeout(resolve, 50)); // Reduced from 100ms
+                    }
+                } else {
+                    throw new Error(result.error || 'Failed to fetch orders batch');
+                }
+            }
+
+            return {
+                success: true,
+                orders: allOrders,
+                totalCount: allOrders.length
+            };
+
+        } catch (error: any) {
+            console.error(`💥 Progressive loading error:`, error);
+            return {
+                success: false,
+                orders: allOrders, // Return what we have so far
+                totalCount: allOrders.length,
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
+    }
+
     async fetchSingleOrder(orderId: string): Promise<{ success: boolean; order?: Order; error?: string }> {
         const isProd = !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
 
