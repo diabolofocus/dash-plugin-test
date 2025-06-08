@@ -50,6 +50,7 @@ export class OrderController {
                 this.orderStore.setNextCursor(result.nextCursor || '');
                 this.orderStore.setConnectionStatus('connected');
                 this.orderStore.setLoadingStatus('');
+                this.autoSelectOldestUnfulfilled();
 
                 console.log(`✅ [${isDev ? 'DEV' : 'PROD'}] Loaded initial ${result.totalCount} orders, can load more: ${result.hasMore}`);
             } else {
@@ -130,6 +131,8 @@ export class OrderController {
                 this.orderStore.setConnectionStatus('connected');
 
                 this.showToast(`Orders refreshed successfully.`, 'success');
+                this.autoSelectOldestUnfulfilled();
+
 
             } else {
                 this.handleNoOrdersFound(result.message);
@@ -418,9 +421,6 @@ export class OrderController {
         return '€';
     }
 
-
-
-
     updateSearchQuery(query: string) {
         this.orderStore.setSearchQuery(query);
     }
@@ -428,12 +428,19 @@ export class OrderController {
     async copyToClipboard(text: string, label: string) {
         try {
             await navigator.clipboard.writeText(text);
-            this.showToast(`${label} copied to clipboard`, 'success');
+            // this.showToast(`${label} copied to clipboard`, 'success');
         } catch (error) {
             this.showToast('Failed to copy to clipboard', 'error');
         }
     }
 
+    private autoSelectOldestUnfulfilled() {
+        const oldestUnfulfilled = this.orderStore.oldestUnfulfilledOrder;
+        if (oldestUnfulfilled && !this.orderStore.selectedOrder) {
+            console.log(`🎯 Auto-selecting oldest unfulfilled order: #${oldestUnfulfilled.number}`);
+            this.selectOrder(oldestUnfulfilled);
+        }
+    }
     private handleNoOrdersFound(message?: string) {
         this.orderStore.setOrders(DEMO_ORDERS as any);
         this.orderStore.setConnectionStatus('disconnected');

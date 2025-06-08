@@ -22,7 +22,7 @@ export const BillingAddress: React.FC<BillingAddressProps> = ({ order }) => {
 
     if (!billingInfo || !billingInfo.address) {
         return (
-            <Box gap="8px" direction="vertical">
+            <Box gap="6px" direction="vertical">
                 <Text size="small" className="section-title">Billing Address:</Text>
                 <Text size="small" secondary>No billing address available</Text>
             </Box>
@@ -33,7 +33,7 @@ export const BillingAddress: React.FC<BillingAddressProps> = ({ order }) => {
     const contactDetails = billingInfo.contactDetails;
 
     return (
-        <Box gap="8px" direction="vertical">
+        <Box gap="6px" direction="vertical">
             <Text size="small" className="section-title">Billing Address:</Text>
 
             {/* Contact Details */}

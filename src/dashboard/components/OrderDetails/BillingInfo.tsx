@@ -140,7 +140,7 @@ export const BillingInfo: React.FC<BillingInfoProps> = ({ order }) => {
 
                     {/* City and Postal Code */}
                     {(address.city || address.postalCode) && (
-                        <Box direction="horizontal" gap="8px" align="left">
+                        <Box direction="horizontal" gap="6px" align="left">
                             {address.postalCode && (
                                 <Text
                                     size="small"

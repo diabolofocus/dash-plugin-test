@@ -24,7 +24,7 @@ export const CompactAnalytics: React.FC = observer(() => {
     ];
 
     // Periods that can use Wix Analytics API (within 62-day limit)
-    const API_SUPPORTED_PERIODS = ['7days', '30days'];
+    const API_SUPPORTED_PERIODS = ['7days', '30days', 'thismonth', 'thisweek'];
 
     // Load analytics when component mounts
     useEffect(() => {
@@ -208,13 +208,19 @@ export const CompactAnalytics: React.FC = observer(() => {
                 previousEndDate.setDate(previousEndDate.getDate() - 30);
                 break;
             case 'thisweek':
-                const startOfLastWeek = new Date(today);
-                const dayOfWeek = startOfLastWeek.getDay();
-                startOfLastWeek.setDate(startOfLastWeek.getDate() - dayOfWeek - 7);
-                const endOfLastWeek = new Date(startOfLastWeek);
-                endOfLastWeek.setDate(startOfLastWeek.getDate() + 6);
-                previousStartDate = startOfLastWeek;
-                previousEndDate = endOfLastWeek;
+                // FIXED: Monday-based weeks (Monday = start, Sunday = end)
+                const currentWeekStart = new Date(today);
+                const dayOfWeek = currentWeekStart.getDay(); // 0 = Sunday, 1 = Monday, etc.
+                const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Sunday=6 days back, others=dayOfWeek-1
+                currentWeekStart.setDate(currentWeekStart.getDate() - daysFromMonday);
+
+                // Previous week starts 7 days before current week start
+                previousStartDate = new Date(currentWeekStart);
+                previousStartDate.setDate(previousStartDate.getDate() - 7);
+
+                // Previous week ends 1 day before current week starts (which is Sunday)
+                previousEndDate = new Date(currentWeekStart);
+                previousEndDate.setDate(previousEndDate.getDate() - 1);
                 break;
             case 'thismonth':
                 previousStartDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);

@@ -204,13 +204,18 @@ export class AnalyticsService {
                 };
 
             case 'thisweek':
+                // FIXED: Monday-based weeks (Monday = start, Sunday = end)
                 const startOfWeek = new Date(today);
-                const dayOfWeek = startOfWeek.getDay();
-                startOfWeek.setDate(startOfWeek.getDate() - dayOfWeek);
+                const dayOfWeek = startOfWeek.getDay(); // 0 = Sunday, 1 = Monday, etc.
+                const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Sunday=6 days back, others=dayOfWeek-1
+                startOfWeek.setDate(startOfWeek.getDate() - daysFromMonday);
+
+                // Previous week: 7 days before current week start
                 const startOfLastWeek = new Date(startOfWeek);
                 startOfLastWeek.setDate(startOfWeek.getDate() - 7);
                 const endOfLastWeek = new Date(startOfWeek);
-                endOfLastWeek.setDate(startOfWeek.getDate() - 1);
+                endOfLastWeek.setDate(startOfWeek.getDate() - 1); // Day before current week starts (Sunday)
+
                 return {
                     current: {
                         startDate: startOfWeek.toISOString().split('T')[0],

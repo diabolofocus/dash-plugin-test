@@ -24,7 +24,7 @@ export const ShippingAddress: React.FC<ShippingAddressProps> = ({ order }) => {
 
   if (!shippingAddress) {
     return (
-      <Box gap="8px" direction="vertical">
+      <Box gap="6px" direction="vertical">
         <Text size="small" className="section-title">Shipping Address:</Text>
         <Text size="small" secondary>No shipping address available</Text>
       </Box>
@@ -32,8 +32,22 @@ export const ShippingAddress: React.FC<ShippingAddressProps> = ({ order }) => {
   }
 
   return (
-    <Box gap="8px" direction="vertical">
+    <Box gap="6px" direction="vertical">
       <Text size="small" className="section-title">Shipping Address:</Text>
+
+      {/* Recipient Name */}
+      {(order.rawOrder?.recipientInfo?.contactDetails?.firstName || order.rawOrder?.recipientInfo?.contactDetails?.lastName) && (
+        <Text
+          size="small"
+          className="clickable-info"
+          onClick={() => {
+            const recipientName = `${order.rawOrder?.recipientInfo?.contactDetails?.firstName || ''} ${order.rawOrder?.recipientInfo?.contactDetails?.lastName || ''}`.trim();
+            orderController.copyToClipboard(recipientName, 'Recipient Name');
+          }}
+        >
+          {`${order.rawOrder?.recipientInfo?.contactDetails?.firstName || ''} ${order.rawOrder?.recipientInfo?.contactDetails?.lastName || ''}`.trim()}
+        </Text>
+      )}
 
       {/* Street Name and Number */}
       {(shippingAddress.streetAddress?.name || shippingAddress.streetAddress?.number) && (

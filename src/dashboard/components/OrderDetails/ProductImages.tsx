@@ -60,7 +60,7 @@ export const ProductImages: React.FC<ProductImagesProps> = ({ order }) => {
                                 )}
 
                                 {/* Product Details - Name, Options, Qty, and Price */}
-                                <Box direction="vertical" gap="4px" style={{ flex: 1, minWidth: 0 }}>
+                                <Box direction="vertical" gap="6px" style={{ flex: 1, minWidth: 0 }}>
                                     {/* Product Name and Price Row */}
                                     <Box
                                         direction="horizontal"
@@ -72,15 +72,15 @@ export const ProductImages: React.FC<ProductImagesProps> = ({ order }) => {
                                             alignItems: 'flex-start'
                                         }}
                                     >
-                                        <Text size="tiny" weight="bold" style={{
+                                        <Text size="tiny" weight="normal" style={{
                                             flex: 1,
                                             textAlign: 'left',
                                             paddingRight: '16px'
                                         }}>
                                             {item.productName?.original || 'Unknown Product'}
                                         </Text>
-                                        <Text size="tiny" weight="bold" style={{
-                                            flexShrink: 0,
+                                        <Text size="tiny" weight="normal" style={{
+                                            flexShrink: 1,
                                             textAlign: 'right'
                                         }}>
                                             {item.price?.formattedAmount || '$0.00'}
@@ -113,7 +113,7 @@ export const ProductImages: React.FC<ProductImagesProps> = ({ order }) => {
             <Box paddingTop="16px" direction="vertical" gap="8px">
                 {/* Total Weight */}
                 <Text size="tiny" align="left">
-                    Total Weight: {(order.rawOrder?.lineItems?.reduce((total: number, item: any) => {
+                    Total weight: {(order.rawOrder?.lineItems?.reduce((total: number, item: any) => {
                         const itemWeight = item.physicalProperties?.weight || 0;
                         const quantity = item.quantity || 1;
                         return total + (itemWeight * quantity);

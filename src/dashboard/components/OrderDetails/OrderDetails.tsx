@@ -96,14 +96,15 @@ export const OrderDetails: React.FC = observer(() => {
                                 style={{
                                     cursor: 'pointer',
                                     color: '#3b82f6',
-                                    textDecoration: 'none'
+                                    textDecoration: 'none',
+                                    flex: 1
                                 }}
                             >
                                 Order #{selectedOrder.number}
                             </Heading>
                             <Icons.ExternalLink
                                 size="22px"
-                                style={{ color: '#3b82f6', cursor: 'pointer' }}
+                                style={{ color: '#3b82f6', cursor: 'pointer', marginLeft: 'auto' }}
                                 onClick={handleOrderLinkClick}
                             />
                         </Box>
@@ -178,10 +179,7 @@ export const OrderDetails: React.FC = observer(() => {
                                 <Box gap="8px" direction="vertical">
                                     <Text size="medium" weight="bold">Fulfillment</Text>
                                     <Text size="small">Method: {selectedOrder.shippingInfo.title}</Text>
-                                    <Text size="small">Cost: {selectedOrder.shippingInfo.cost}</Text>
                                 </Box>
-
-                                <Card.Divider />
                             </>
                         )}
 

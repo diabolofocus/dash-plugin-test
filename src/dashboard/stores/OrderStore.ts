@@ -185,9 +185,11 @@ export class OrderStore {
                 startDate.setDate(startDate.getDate() - 30);
                 break;
             case 'thisweek':
+                // FIXED: Monday-based weeks (Monday = start, Sunday = end)
                 startDate = new Date(today);
-                const dayOfWeek = startDate.getDay();
-                startDate.setDate(startDate.getDate() - dayOfWeek);
+                const dayOfWeek = startDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+                const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Sunday=6 days back, others=dayOfWeek-1
+                startDate.setDate(startDate.getDate() - daysFromMonday);
                 break;
             case 'thismonth':
                 startDate = new Date(now.getFullYear(), now.getMonth(), 1);

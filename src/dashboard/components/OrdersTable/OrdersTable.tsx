@@ -1,7 +1,18 @@
 // components/OrdersTable/OrdersTable.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { observer } from 'mobx-react-lite';
-import { Box, Text, Heading, Dropdown, Search, Button, Loader, Table, TableActionCell, TableToolbar } from '@wix/design-system';
+import {
+    Card,
+    Text,
+    Dropdown,
+    Search,
+    Button,
+    Loader,
+    Table,
+    TableActionCell,
+    TableToolbar,
+    Box
+} from '@wix/design-system';
 import * as Icons from '@wix/wix-ui-icons-common';
 import { useStores } from '../../hooks/useStores';
 import { useOrderController } from '../../hooks/useOrderController';
@@ -13,16 +24,12 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { orders } from '@wix/ecom';
 
-
 export const OrdersTable: React.FC = observer(() => {
-
     const { orderStore, uiStore } = useStores();
     const orderController = useOrderController();
     const [selectedStatusFilter, setSelectedStatusFilter] = useState(null);
-    const totalProductCount = 300; // Adjust based on your needs
     const containerRef = useRef(null);
     const [container, setContainer] = useState(null);
-
 
     // Initialize container ref
     useEffect(() => {
@@ -53,7 +60,6 @@ export const OrdersTable: React.FC = observer(() => {
             return () => container.removeEventListener('scroll', handleScroll);
         }
     }, [handleScroll]);
-
 
     const statusFilterOptions = [
         { id: 'unfulfilled', value: 'Unfulfilled' },
@@ -98,28 +104,6 @@ export const OrdersTable: React.FC = observer(() => {
             }
         }
     };
-
-
-    // const handlePrintInvoice = (order: Order) => {
-    //     console.log(`Print invoice clicked for order #${order.number}`);
-    // };
-
-    // const handleViewOrder = (order: Order) => {
-    //     try {
-    //         const orderId = order._id;
-
-    //         // Get the destination object
-    //         const destination = pages.orderDetails({
-    //             id: orderId
-    //         });
-
-    //         // Navigate to order details (removing unsupported newTab option)
-    //         dashboard.navigate(destination);
-    //     } catch (error) {
-    //         console.error('Failed to navigate to order details:', error);
-    //     }
-    // };
-
 
     const handlePrintOrder = async (order: Order) => {
         try {
@@ -339,10 +323,6 @@ export const OrdersTable: React.FC = observer(() => {
         }
     };
 
-    // const handleMarkAsPaidOrder = (order: Order) => {
-    //     console.log(`Order #${order.number} marked as paid`);
-    // };
-
     const handleArchiveOrder = async (order: Order) => {
         try {
             console.log(`Archiving order #${order.number}`);
@@ -375,10 +355,6 @@ export const OrdersTable: React.FC = observer(() => {
             // Show success message
             alert(`Order #${order.number} has been archived successfully!`);
 
-            // Refresh the orders table to reflect the change
-            // You might want to call your refresh function here
-            // refreshOrders();
-
         } catch (error) {
             console.error("Error archiving order:", error);
             alert(`Failed to archive order #${order.number}. Please try again.`);
@@ -392,19 +368,14 @@ export const OrdersTable: React.FC = observer(() => {
         return orders.filter(order => {
             switch (statusFilter) {
                 case 'unfulfilled':
-                    // Look for any status that isn't fulfilled/completed
                     return order.status !== 'FULFILLED';
                 case 'unpaid':
-                    // Look for any payment status that isn't paid
                     return order.paymentStatus !== 'PAID';
                 case 'refunded':
-                    // Look for refund-related statuses
                     return order.paymentStatus?.toLowerCase().includes('refund');
                 case 'canceled':
-                    // Look for canceled status
                     return order.status?.toLowerCase().includes('cancel');
                 case 'archived':
-                    // Check multiple possible locations for archived flag
                     return order.rawOrder?.archived === true || (order as any).archived === true;
                 default:
                     return true;
@@ -413,28 +384,15 @@ export const OrdersTable: React.FC = observer(() => {
     };
 
     const handleRowClick = (order: Order, event?: any) => {
-        // Remove all previous blue selections
-        document.querySelectorAll('tr').forEach(row => {
-            row.style.backgroundColor = '';
-            row.style.borderLeft = '';
-            row.querySelectorAll('td').forEach(cell => {
-                cell.style.backgroundColor = '';
-            });
+        // Remove all previous selections
+        document.querySelectorAll('[data-selected-order]').forEach(row => {
+            row.removeAttribute('data-selected-order');
         });
 
-        // Get the clicked row element
+        // Get the clicked row element and mark it as selected
         const clickedRow = event?.currentTarget?.closest('tr');
-
         if (clickedRow) {
-            // Apply blue styling directly
-            clickedRow.style.backgroundColor = '#e3f2fd';
-            clickedRow.style.borderLeft = '4px solid #1976d2';
-
-            // Apply to all cells in the row
-            const cells = clickedRow.querySelectorAll('td');
-            cells.forEach(cell => {
-                cell.style.backgroundColor = '#e3f2fd';
-            });
+            clickedRow.setAttribute('data-selected-order', order._id);
         }
 
         // Update store for other functionality (OrderDetails panel)
@@ -451,7 +409,8 @@ export const OrdersTable: React.FC = observer(() => {
                 </Text>
             ),
             width: '70px',
-            align: 'start' as const
+            align: 'start' as const,
+            overflow: 'hidden'
         },
         {
             title: 'Date Created',
@@ -461,7 +420,8 @@ export const OrdersTable: React.FC = observer(() => {
                 </Text>
             ),
             width: '90px',
-            align: 'start' as const
+            align: 'start' as const,
+            overflow: 'hidden'
         },
         {
             title: 'Customer',
@@ -477,15 +437,16 @@ export const OrdersTable: React.FC = observer(() => {
 
                 return (
                     <Box direction="vertical" gap="2px">
-                        <Text size="small">{customerName}</Text>
+                        <Text size="small" ellipsis>{customerName}</Text>
                         {company && (
-                            <Text size="tiny" secondary>{company}</Text>
+                            <Text size="tiny" secondary ellipsis>{company}</Text>
                         )}
                     </Box>
                 );
             },
             width: '140px',
-            align: 'start' as const
+            align: 'start' as const,
+            overflow: 'hidden'
         },
         {
             title: 'Payment',
@@ -493,7 +454,8 @@ export const OrdersTable: React.FC = observer(() => {
                 <StatusBadge status={order.paymentStatus} type="payment" />
             ),
             width: '80px',
-            align: 'start' as const
+            align: 'start' as const,
+            overflow: 'hidden'
         },
         {
             title: 'Fulfillment',
@@ -501,15 +463,17 @@ export const OrdersTable: React.FC = observer(() => {
                 <StatusBadge status={order.status} type="order" />
             ),
             width: '90px',
-            align: 'start' as const
+            align: 'start' as const,
+            overflow: 'hidden'
         },
         {
             title: 'Total',
             render: (order: Order) => (
-                <Text size="small" >{order.total}</Text>
+                <Text size="small">{order.total}</Text>
             ),
             width: '70px',
-            align: 'start' as const
+            align: 'start' as const,
+            overflow: 'hidden'
         },
         {
             title: 'Actions',
@@ -518,16 +482,14 @@ export const OrdersTable: React.FC = observer(() => {
                     size="small"
                     popoverMenuProps={{
                         zIndex: 1000,
-                        appendTo: "window"  // Optional: renders dropdown in document.body
+                        appendTo: "window"
                     }}
-
                     secondaryActions={[
                         {
                             text: "View Order",
                             icon: <Icons.Order />,
                             onClick: () => handleViewOrder(order)
                         },
-
                         {
                             text: "Print Order",
                             icon: <Icons.Print />,
@@ -536,7 +498,6 @@ export const OrdersTable: React.FC = observer(() => {
                         {
                             divider: true
                         },
-
                         {
                             text: "Archive Order",
                             icon: <Icons.Archive />,
@@ -549,7 +510,8 @@ export const OrdersTable: React.FC = observer(() => {
             ),
             width: '80px',
             align: 'end' as const,
-            stickyActionCell: true
+            stickyActionCell: true,
+            overflow: 'hidden'
         }
     ];
 
@@ -559,54 +521,56 @@ export const OrdersTable: React.FC = observer(() => {
         ...order
     }));
 
+    // Move this useEffect to after the statusFilteredOrders and tableData declarations
+    useEffect(() => {
+        if (orderStore.selectedOrder) {
+            // Small delay to ensure table is rendered
+            setTimeout(() => {
+                // Remove all previous selections
+                document.querySelectorAll('[data-selected-order]').forEach(row => {
+                    row.removeAttribute('data-selected-order');
+                });
+
+                // Find and highlight the selected order row
+                const rows = document.querySelectorAll('tbody tr');
+                rows.forEach((row, index) => {
+                    const orderData = statusFilteredOrders[index];
+                    if (orderData && orderData._id === orderStore.selectedOrder._id) {
+                        row.setAttribute('data-selected-order', orderData._id);
+                    }
+                });
+            }, 100);
+        }
+    }, [orderStore.selectedOrder, statusFilteredOrders]);
+
     return (
-        <Box width="70%" gap="20px" direction="vertical">
-            <Box
-                direction="vertical"
-                style={{
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    overflow: 'hidden' // Changed from 'hidden' to 'visible'
-                }}
-            >
-                {/* Header */}
-                <Box
-                    paddingTop="20px"
-                    paddingBottom="0px"
-                    paddingLeft="20px"
-                    paddingRight="20px"
-
-                    style={{ backgroundColor: 'white', borderRadius: '8px 8px 0 0' }}
-                >
-                    <Heading size="medium">
-                        Recent Orders
-                        {orderStore.loadingStatus && (
-                            <Text size="small" secondary> {orderStore.loadingStatus}</Text>
-                        )}
-                    </Heading>
-                </Box>
-
-
-                {/* Search and Filter */}
-                <Box
-                    paddingTop="20px"
-                    paddingBottom="20px"
-                    paddingLeft="20px"
-                    paddingRight="20px"
-                    style={{ backgroundColor: 'white' }}
-                    direction="horizontal"
-                    gap="12px"
-                    align="center"
-                >
-                    <Box width="70%">
+        <Card>
+            <TableToolbar>
+                <TableToolbar.ItemGroup position="start">
+                    <TableToolbar.Item>
+                        <TableToolbar.Title>
+                            Recent Orders
+                        </TableToolbar.Title>
+                    </TableToolbar.Item>
+                    {orderStore.loadingStatus && (
+                        <TableToolbar.Item>
+                            <TableToolbar.Label>
+                                {orderStore.loadingStatus}
+                            </TableToolbar.Label>
+                        </TableToolbar.Item>
+                    )}
+                </TableToolbar.ItemGroup>
+                <TableToolbar.ItemGroup position="end">
+                    <TableToolbar.Item>
                         <Search
                             value={orderStore.searchQuery}
                             onChange={handleSearchChange}
                             placeholder="Search by order number, customer name, email, or company.."
                             expandable={false}
+                            size="small"
                         />
-                    </Box>
-                    <Box width="30%">
+                    </TableToolbar.Item>
+                    <TableToolbar.Item>
                         <Dropdown
                             placeholder="Filter by status"
                             clearButton
@@ -615,65 +579,62 @@ export const OrdersTable: React.FC = observer(() => {
                             selectedId={selectedStatusFilter}
                             options={statusFilterOptions}
                             border="round"
+                            size="small"
                         />
+                    </TableToolbar.Item>
+                </TableToolbar.ItemGroup>
+            </TableToolbar>
 
-                    </Box>
-                </Box>
-
-                {/* Table */}
-                <div
-                // ref={containerRef}
-                // style={{
-                //     overflowY: 'auto',
-                //     overflowX: 'hidden'
-                // }}
+            <div
+                style={{
+                    overflowX: 'auto',
+                    width: '100%'
+                }}
+            >
+                <Table
+                    data={tableData}
+                    columns={columns}
+                    onRowClick={(rowData, event) => handleRowClick(rowData as Order, event)}
+                    horizontalScroll
                 >
-                    {statusFilteredOrders.length === 0 ? (
-                        <Box align="center" paddingTop="40px" paddingBottom="40px">
-                            <Text secondary>No orders found</Text>
-                        </Box>
-                    ) : (
-                        <Table
-                            showSelection
-                            data={tableData}
-                            columns={columns}
-                            onRowClick={(rowData, event) => handleRowClick(rowData as Order, event)}
-                            horizontalScroll={false}
-                            rowVerticalPadding="small"
-                            skin="standard"
-
-                        >
-                            <Table.Content />
-                            {/* Add loading indicator for "load more" */}
-                            {orderStore.isLoadingMore && (
-                                <Box align="center" padding="24px 0px">
-                                    <Loader size="tiny" />
-                                </Box>
-                            )}
-                        </Table>
-                    )}
-                </div>
-
-            </Box>
+                    <Table.Titlebar />
+                    <div
+                        ref={containerRef}
+                        style={{
+                            maxHeight: 'calc(100vh - 352px)',
+                            overflowY: 'auto',
+                            overflowX: 'hidden'
+                        }}
+                    >
+                        {statusFilteredOrders.length === 0 ? (
+                            <Box align="center" paddingTop="40px" paddingBottom="40px">
+                                <Text secondary>No orders found</Text>
+                            </Box>
+                        ) : (
+                            <Table.Content titleBarVisible={false} />
+                        )}
+                        {/* Add loading indicator for "load more" */}
+                        {orderStore.isLoadingMore && (
+                            <Box align="center" padding="24px 0px">
+                                <Loader size="small" />
+                            </Box>
+                        )}
+                    </div>
+                </Table>
+            </div>
 
             {/* Add some CSS styles for better visual feedback */}
             <style>{`
-    
-    .canceled-row {
-        opacity: 0.6;
-    }
-    .canceled-row * {
-        color: #9ca3af !important;
-    }
-    
-    .wsr-table-header {
-        position: sticky !important;
-        top: 0 !important;
-        z-index: 10 !important;
-        background-color: #ffffff !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-    }
-`}</style>
-        </Box>
+                .canceled-row {
+                    opacity: 0.6;
+                }
+                .canceled-row * {
+                    color: #9ca3af !important;
+                }
+                tr[data-selected-order] {
+                    background-color: #e9f0fe !important;
+                }
+            `}</style>
+        </Card>
     );
 });
