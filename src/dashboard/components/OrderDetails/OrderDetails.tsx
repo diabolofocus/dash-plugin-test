@@ -30,9 +30,22 @@ export const OrderDetails: React.FC = observer(() => {
             <Card>
                 <Card.Header title="Select an Order" />
                 <Card.Content>
-                    <Box align="center" paddingTop="40px" paddingBottom="40px" gap="16px" direction="vertical">
+                    <Box
+                        align="center"
+                        paddingTop="40px"
+                        paddingBottom="40px"
+                        gap="16px"
+                        direction="vertical"
+                        height="calc(100vh - 420px)"
+                        style={{
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
+                    >
                         <Icons.Package size="48px" style={{ color: '#ccc' }} />
-                        <Text secondary size="small">
+                        <Text secondary size="small" align="center">
                             Click on any order to view and fulfill it
                         </Text>
                     </Box>

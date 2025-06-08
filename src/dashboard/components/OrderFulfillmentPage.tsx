@@ -141,14 +141,14 @@ export const OrderFulfillmentPage: React.FC = observer(() => {
               gap="20px"
               className="horizontal-container"
               style={{
-                minHeight: 'calc(100vh - 140px)',
+
                 alignItems: 'flex-start'
               }}
             >
               {/* Left Column: Orders Table */}
               <OrdersTable />
 
-              {/* Right Column: Order Details - FIXED */}
+              {/* Right Column: Order Details */}
               <div className="sticky-order-details">
                 <OrderDetails />
               </div>

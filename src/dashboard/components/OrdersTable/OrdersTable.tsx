@@ -622,12 +622,11 @@ export const OrdersTable: React.FC = observer(() => {
 
                 {/* Table */}
                 <div
-                    ref={containerRef}
-                    style={{
-                        maxHeight: '70vh',
-                        overflowY: 'auto',
-                        overflowX: 'hidden'
-                    }}
+                // ref={containerRef}
+                // style={{
+                //     overflowY: 'auto',
+                //     overflowX: 'hidden'
+                // }}
                 >
                     {statusFilteredOrders.length === 0 ? (
                         <Box align="center" paddingTop="40px" paddingBottom="40px">
@@ -642,20 +641,13 @@ export const OrdersTable: React.FC = observer(() => {
                             horizontalScroll={false}
                             rowVerticalPadding="small"
                             skin="standard"
+
                         >
                             <Table.Content />
                             {/* Add loading indicator for "load more" */}
                             {orderStore.isLoadingMore && (
                                 <Box align="center" padding="24px 0px">
                                     <Loader size="tiny" />
-                                    <Text size="small" secondary>Loading more orders..</Text>
-                                </Box>
-                            )}
-
-                            {/* Show end message when no more orders */}
-                            {!orderStore.hasMoreOrders && orderStore.orders.length > 0 && (
-                                <Box align="center" padding="24px 0px">
-                                    <Text size="small" secondary>All orders loaded ({orderStore.orders.length} total)</Text>
                                 </Box>
                             )}
                         </Table>
@@ -672,6 +664,14 @@ export const OrdersTable: React.FC = observer(() => {
     }
     .canceled-row * {
         color: #9ca3af !important;
+    }
+    
+    .wsr-table-header {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 10 !important;
+        background-color: #ffffff !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
     }
 `}</style>
         </Box>

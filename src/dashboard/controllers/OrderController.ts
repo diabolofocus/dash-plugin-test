@@ -129,7 +129,7 @@ export class OrderController {
 
                 this.orderStore.setConnectionStatus('connected');
 
-                this.showToast(`Orders refreshed successfully! Found ${result.orders.length} orders.`, 'success');
+                this.showToast(`Orders refreshed successfully.`, 'success');
 
             } else {
                 this.handleNoOrdersFound(result.message);

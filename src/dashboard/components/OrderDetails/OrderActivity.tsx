@@ -138,116 +138,133 @@ export const OrderActivity: React.FC<OrderActivityProps> = ({ order }) => {
                         const { date, time } = formatActivityDateTime(activity._createdDate);
                         const description = getActivityDescription(activity);
                         const isLast = index === sortedActivities.length - 1;
+                        const isNewDate = index === 0 || formatActivityDateTime(sortedActivities[index - 1]._createdDate).date !== date;
 
                         return (
-                            <Box key={activity._id} direction="horizontal" gap="0px" style={{ position: 'relative' }}>
-                                {/* Timeline dot and line */}
-                                <Box
-                                    style={{
+                            <div key={activity._id} style={{ position: 'relative' }}>
+                                {/* Date header with proper spacing */}
+                                {isNewDate && (
+                                    <div style={{
+                                        marginTop: index === 0 ? '0px' : '12px',
+                                        marginBottom: '8px'
+                                    }}>
+                                        <Text size="tiny" secondary weight="normal">
+                                            {date}
+                                        </Text>
+                                    </div>
+                                )}
+
+                                {/* Timeline item */}
+                                <div style={{
+                                    display: 'flex',
+                                    position: 'relative',
+                                    paddingBottom: '10px'
+                                }}>
+                                    {/* Timeline dot and line container */}
+                                    <div style={{
                                         position: 'relative',
-                                        paddingTop: '4px',
-                                        minWidth: '12px',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
-                                    }}
-                                >
-                                    {/* Timeline dot */}
-                                    <Box
-                                        style={{
-                                            width: '8px',
-                                            height: '8px',
+                                        width: '10px',
+                                        display: 'flex',
+                                        justifyContent: 'center',
+                                        flexShrink: 0
+                                    }}>
+                                        {/* Timeline dot */}
+                                        <div style={{
+                                            width: '5px',
+                                            height: '5px',
                                             borderRadius: '50%',
-                                            backgroundColor: '#1976d2',
+                                            backgroundColor: '#333333',
                                             position: 'relative',
-                                            zIndex: 1
-                                        }}
-                                    />
+                                            zIndex: 2,
+                                            marginTop: '6px'
+                                        }} />
 
-                                    {/* Timeline line */}
-                                    {!isLast && (
-                                        <Box
-                                            style={{
+                                        {/* Timeline line */}
+                                        {!isLast && (
+                                            <div style={{
                                                 position: 'absolute',
-                                                top: '12px',
-                                                left: '3px',
-                                                width: '2px',
-                                                height: '40px',
-                                                backgroundColor: '#e0e0e0'
-                                            }}
-                                        />
-                                    )}
-                                </Box>
-
-                                {/* Activity content */}
-                                <Box gap="4px" direction="vertical" style={{ flex: 1, paddingBottom: '24px' }}>
-                                    {/* Date header (only show if different from previous) */}
-                                    {(index === 0 ||
-                                        formatActivityDateTime(sortedActivities[index - 1]._createdDate).date !== date
-                                    ) && (
-                                            <Text size="tiny" secondary weight="normal" style={{ marginBottom: '8px', marginTop: index === 0 ? '24px' : '16px' }}>
-                                                {date}
-                                            </Text>
+                                                top: '14px',
+                                                left: '50%',
+                                                transform: 'translateX(-50%)',
+                                                width: '1px',
+                                                height: '20px',
+                                                backgroundColor: '#e0e0e0',
+                                                zIndex: 1
+                                            }} />
                                         )}
+                                    </div>
 
-                                    {/* Activity description and time */}
-                                    <Box direction="horizontal" align="space-between">
-                                        <Text size="tiny" style={{ flex: 1 }}>
-                                            {description}
-                                        </Text>
-                                        <Text size="tiny" secondary style={{ marginLeft: '12px' }}>
-                                            {time}
-                                        </Text>
-                                    </Box>
+                                    {/* Activity content */}
+                                    <div style={{
+                                        flex: 1,
+                                        paddingLeft: '12px',
+                                        paddingTop: '2px'
+                                    }}>
+                                        {/* Activity description and time */}
+                                        <div style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'flex-start'
+                                        }}>
+                                            <Text size="tiny" style={{ flex: 1 }}>
+                                                {description}
+                                            </Text>
+                                            <Text size="tiny" secondary style={{ marginLeft: '12px' }}>
+                                                {time}
+                                            </Text>
+                                        </div>
 
-                                    {/* Additional details for specific activity types */}
-                                    {activity.type === 'MERCHANT_COMMENT' && activity.merchantComment?.message && (
-                                        <Box
-                                            style={{
+                                        {/* Additional details for specific activity types */}
+                                        {activity.type === 'MERCHANT_COMMENT' && activity.merchantComment?.message && (
+                                            <div style={{
                                                 backgroundColor: '#f5f5f5',
                                                 padding: '8px 12px',
                                                 borderRadius: '4px',
-                                                marginTop: '4px'
-                                            }}
-                                        >
-                                            <Text size="tiny">{activity.merchantComment.message}</Text>
-                                        </Box>
-                                    )}
+                                                marginTop: '8px'
+                                            }}>
+                                                <Text size="tiny">{activity.merchantComment.message}</Text>
+                                            </div>
+                                        )}
 
-                                    {activity.type === 'ORDER_REFUNDED' && activity.orderRefunded && (
-                                        <Box gap="4px" direction="vertical" style={{ marginTop: '4px' }}>
-                                            <Text size="small" secondary>
-                                                Amount: {activity.orderRefunded.amount?.formattedAmount}
+                                        {activity.type === 'ORDER_REFUNDED' && activity.orderRefunded && (
+                                            <div style={{ marginTop: '8px' }}>
+                                                <Text size="small" secondary>
+                                                    Amount: {activity.orderRefunded.amount?.formattedAmount}
+                                                </Text>
+                                                {activity.orderRefunded.reason && (
+                                                    <Text size="tiny" secondary>
+                                                        Reason: {activity.orderRefunded.reason}
+                                                    </Text>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {activity.type === 'CUSTOM_ACTIVITY' && activity.customActivity?.additionalData && (
+                                            <div style={{ marginTop: '8px' }}>
+                                                {Object.entries(activity.customActivity.additionalData).map(([key, value]) => (
+                                                    <Text key={key} size="tiny" secondary>
+                                                        {key}: {value}
+                                                    </Text>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Author email if available */}
+                                        {activity.authorEmail && (
+                                            <Text size="tiny" secondary style={{ marginTop: '4px' }}>
+                                                by {activity.authorEmail}
                                             </Text>
-                                            {activity.orderRefunded.reason && (
-                                                <Text size="tiny" secondary>
-                                                    Reason: {activity.orderRefunded.reason}
-                                                </Text>
-                                            )}
-                                        </Box>
-                                    )}
-
-                                    {activity.type === 'CUSTOM_ACTIVITY' && activity.customActivity?.additionalData && (
-                                        <Box gap="4px" direction="vertical" style={{ marginTop: '4px' }}>
-                                            {Object.entries(activity.customActivity.additionalData).map(([key, value]) => (
-                                                <Text key={key} size="tiny" secondary>
-                                                    {key}: {value}
-                                                </Text>
-                                            ))}
-                                        </Box>
-                                    )}
-
-                                    {/* Author email if available */}
-                                    {activity.authorEmail && (
-                                        <Text size="tiny" secondary style={{ marginTop: '2px' }}>
-                                            by {activity.authorEmail}
-                                        </Text>
-                                    )}
-                                </Box>
-                            </Box>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
                         );
                     })
                 )}
             </Box>
+
+
+
         </Box>
     );
 };

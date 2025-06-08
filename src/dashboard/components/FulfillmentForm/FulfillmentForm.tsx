@@ -149,7 +149,7 @@ export const FulfillmentForm: React.FC = observer(() => {
                 </Checkbox>
                 {sendConfirmationEmail && (
                     <Text size="tiny" secondary>
-                        💡 Make sure email settings are enabled in your Wix dashboard (Checkout → Edit Emails)
+                        Make sure email settings are enabled for third party apps (Checkout → Edit Emails)
                     </Text>
                 )}
             </Box>

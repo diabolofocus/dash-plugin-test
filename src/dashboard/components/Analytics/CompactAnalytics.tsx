@@ -331,22 +331,35 @@ export const CompactAnalytics: React.FC = observer(() => {
     };
 
     // Component to render individual metric
-    const MetricItem: React.FC<{ title: string; value: string | number; change?: number }> = ({ title, value, change }) => {
+    const MetricItem: React.FC<{ title: string; value: string | number; change?: number; isSalesMetric?: boolean }> = ({
+        title,
+        value,
+        change,
+    }) => {
         const percentageData = change !== undefined ? formatPercentageChange(change) : null;
 
         return (
             <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                 <Text size="medium" secondary>{title}</Text>
-                <Text size="medium" weight="bold">
+                <Text
+                    size="medium"
+                    weight="normal"
+                >
                     {metrics.isLoading ? 'Loading...' : value}
                 </Text>
                 {percentageData && !metrics.isLoading && (
-                    <Text
-                        size="tiny"
-                        style={{ color: percentageData.color, fontWeight: '500' }}
+                    <span
+                        style={{
+                            color: percentageData.color,
+                            fontWeight: '700',
+                            fontSize: '9px',
+                            lineHeight: '1',
+                            fontFamily: 'HelveticaNeueW01-45Ligh, HelveticaNeueW02-45Ligh, HelveticaNeueW10-45Ligh, Helvetica Neue, Helvetica, Arial, sans-serif',
+                            letterSpacing: '1.3px'  // Add this for character spacing
+                        }}
                     >
                         {percentageData.text}
-                    </Text>
+                    </span>
                 )}
             </div>
         );
@@ -378,24 +391,27 @@ export const CompactAnalytics: React.FC = observer(() => {
                                     title="Sales"
                                     value={metrics.sales}
                                     change={metrics.salesChange}
+
                                 />
 
                                 <MetricItem
                                     title="Orders"
                                     value={metrics.orders}
                                     change={metrics.ordersChange}
+
                                 />
 
                                 <MetricItem
                                     title="Avg. order value"
                                     value={metrics.avgOrderValue}
                                     change={metrics.aovChange}
+
                                 />
 
                                 {/* Data source indicator */}
-                                <Text size="tiny" secondary>
+                                {/* <Text size="tiny" secondary>
                                     {getDataSource()} {orderStore.getPeriodLabel()}
-                                </Text>
+                                </Text> */}
                             </>
                         ) : (
                             <Text size="small" secondary>
