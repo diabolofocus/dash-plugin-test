@@ -21,7 +21,7 @@ export const OrderFulfillmentPage: React.FC = observer(() => {
 
     const initializeData = async () => {
       await orderController.loadOrders();
-      await orderController.loadAnalytics('30days'); // Load 30-day analytics
+      await orderController.loadAnalyticsForPeriod('30days'); // Load 30-day analytics
     };
 
     initializeData();

@@ -1,10 +1,9 @@
-// Fixed OrderAnalytics.tsx
+// Final OrderAnalytics.tsx - Clean implementation with enhanced features
 import React from 'react';
 import { observer } from 'mobx-react-lite';
-import { Box, Text, Card } from '@wix/design-system';
+import { Box, Text, Card, Loader } from '@wix/design-system';
 import * as Icons from '@wix/wix-ui-icons-common';
 import { useStores } from '../../hooks/useStores';
-import type { Order } from '../../types/Order';
 
 interface AnalyticsData {
     totalSales: number;
@@ -13,60 +12,85 @@ interface AnalyticsData {
     currency: string;
     fulfilledOrders: number;
     pendingOrders: number;
+    isLoading: boolean;
 }
 
 export const OrderAnalytics: React.FC = observer(() => {
     const { orderStore } = useStores();
 
-    // Helper to parse price string (e.g., "€123.45" or "$123.45") to number
-    const parsePrice = (price: string): number => {
-        // Remove all non-digit, non-dot, non-comma, and non-minus characters
-        const cleaned = price.replace(/[^0-9.,-]/g, '');
-        // Replace comma with dot if comma is used as decimal separator
-        const normalized = cleaned.replace(',', '.');
-        const parsed = parseFloat(normalized);
-        return isNaN(parsed) ? 0 : parsed;
-    };
-
-    // Helper to extract currency symbol from price string
-    const extractCurrency = (price: string): string => {
-        const match = price.match(/[^0-9.,-]+/);
-        return match ? match[0] : '€';
-    };
-
-    // Replace the calculateLast30DaysAnalytics function in OrderAnalytics.tsx
     const calculateAnalytics = (): AnalyticsData => {
-        // Try to use Analytics API data first
-        if (orderStore.formattedAnalytics && !orderStore.analyticsError) {
-            console.log('📊 Using Analytics API data');
+        const isLoading = orderStore.analyticsLoading;
 
+        // Use Analytics API data if available
+        if (orderStore.formattedAnalytics && !orderStore.analyticsError && !isLoading) {
             const apiAnalytics = orderStore.formattedAnalytics;
+
+            // Calculate fulfillment stats from orders (API doesn't provide this)
+            const last30DaysOrders = getLast30DaysOrders();
+            const fulfilledOrders = last30DaysOrders.filter(order => order.status === 'FULFILLED').length;
+            const pendingOrders = last30DaysOrders.filter(order =>
+                order.status === 'NOT_FULFILLED' || order.status === 'PARTIALLY_FULFILLED'
+            ).length;
 
             return {
                 totalSales: apiAnalytics.totalSales,
                 totalOrders: apiAnalytics.totalOrders,
                 averageOrderValue: apiAnalytics.averageOrderValue,
                 currency: apiAnalytics.currency,
-                fulfilledOrders: 0, // Analytics API doesn't provide this
-                pendingOrders: 0    // Analytics API doesn't provide this
+                fulfilledOrders,
+                pendingOrders,
+                isLoading: false
+            };
+        }
+
+        // Return loading state or fallback calculation
+        if (isLoading) {
+            return {
+                totalSales: 0,
+                totalOrders: 0,
+                averageOrderValue: 0,
+                currency: '€',
+                fulfilledOrders: 0,
+                pendingOrders: 0,
+                isLoading: true
             };
         }
 
         // Fallback to order-based calculation
-        console.log('📊 Falling back to order-based analytics');
+        return calculateFromOrders();
+    };
 
+    // Helper to get last 30 days orders
+    const getLast30DaysOrders = () => {
         const now = new Date();
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(now.getDate() - 30);
         thirtyDaysAgo.setHours(0, 0, 0, 0);
 
-        // Your existing calculation logic...
-        const last30DaysOrders = orderStore.orders.filter(order => {
+        return orderStore.orders.filter(order => {
             const orderDate = new Date(order._createdDate);
             return orderDate >= thirtyDaysAgo;
         });
+    };
 
-        // Rest of your existing logic...
+    // Helper to parse price string
+    const parsePrice = (price: string): number => {
+        const cleaned = price.replace(/[^0-9.,-]/g, '');
+        const normalized = cleaned.replace(',', '.');
+        const parsed = parseFloat(normalized);
+        return isNaN(parsed) ? 0 : parsed;
+    };
+
+    // Helper to extract currency symbol
+    const extractCurrency = (price: string): string => {
+        const match = price.match(/[^0-9.,-]+/);
+        return match ? match[0] : '€';
+    };
+
+    // Fallback calculation from orders
+    const calculateFromOrders = (): AnalyticsData => {
+        const last30DaysOrders = getLast30DaysOrders();
+
         let totalSales = 0;
         let currency = '€';
 
@@ -92,14 +116,12 @@ export const OrderAnalytics: React.FC = observer(() => {
             averageOrderValue,
             currency,
             fulfilledOrders,
-            pendingOrders
+            pendingOrders,
+            isLoading: false
         };
     };
 
-    // Update your component to use this new function
     const analytics = calculateAnalytics();
-
-
 
     const formatCurrency = (amount: number, currency: string): string => {
         return `${currency}${amount.toLocaleString('en-US', {
@@ -108,103 +130,84 @@ export const OrderAnalytics: React.FC = observer(() => {
         })}`;
     };
 
+    const MetricCard: React.FC<{
+        icon: React.ReactNode;
+        title: string;
+        value: string;
+        bgColor: string;
+        iconColor: string;
+        isLoading?: boolean;
+    }> = ({ icon, title, value, bgColor, iconColor, isLoading }) => (
+        <Card>
+            <Card.Content>
+                <Box
+                    direction="horizontal"
+                    align="center"
+                    gap="12px"
+                    paddingTop="12px"
+                    paddingBottom="12px"
+                    paddingLeft="16px"
+                    paddingRight="16px"
+                >
+                    <Box
+                        width="40px"
+                        height="40px"
+                        borderRadius="50%"
+                        backgroundColor={bgColor}
+                        align="center"
+                        verticalAlign="middle"
+                    >
+                        {isLoading ? (
+                            <Loader size="tiny" />
+                        ) : (
+                            React.cloneElement(icon as React.ReactElement, {
+                                size: "20px",
+                                style: { color: iconColor }
+                            })
+                        )}
+                    </Box>
+                    <Box direction="vertical" gap="2px">
+                        <Text size="tiny" secondary>{title}</Text>
+                        <Text size="medium" weight="bold">
+                            {isLoading ? 'Loading...' : value}
+                        </Text>
+                    </Box>
+                </Box>
+            </Card.Content>
+        </Card>
+    );
+
     return (
         <Box gap="16px" direction="horizontal" align="center">
             {/* Sales Metric */}
-            <Card>
-                <Card.Content>
-                    <Box
-                        direction="horizontal"
-                        align="center"
-                        gap="12px"
-                        paddingTop="12px"
-                        paddingBottom="12px"
-                        paddingLeft="16px"
-                        paddingRight="16px"
-                    >
-                        <Box
-                            width="40px"
-                            height="40px"
-                            borderRadius="50%"
-                            backgroundColor="#e8f5e8"
-                            align="center"
-                            verticalAlign="middle"
-                        >
-                            <Icons.CurrencySmall size="20px" style={{ color: '#22c55e' }} />
-                        </Box>
-                        <Box direction="vertical" gap="2px">
-                            <Text size="tiny" secondary>Sales (30 days)</Text>
-                            <Text size="medium" weight="bold">
-                                {formatCurrency(analytics.totalSales, analytics.currency)}
-                            </Text>
-                        </Box>
-                    </Box>
-                </Card.Content>
-            </Card>
+            <MetricCard
+                icon={<Icons.CurrencySmall />}
+                title="Sales (30 days)"
+                value={formatCurrency(analytics.totalSales, analytics.currency)}
+                bgColor="#e8f5e8"
+                iconColor="#22c55e"
+                isLoading={analytics.isLoading}
+            />
 
             {/* Orders Metric */}
-            <Card>
-                <Card.Content>
-                    <Box
-                        direction="horizontal"
-                        align="center"
-                        gap="12px"
-                        paddingTop="12px"
-                        paddingBottom="12px"
-                        paddingLeft="16px"
-                        paddingRight="16px"
-                    >
-                        <Box
-                            width="40px"
-                            height="40px"
-                            borderRadius="50%"
-                            backgroundColor="#eff6ff"
-                            align="center"
-                            verticalAlign="middle"
-                        >
-                            <Icons.Package size="20px" style={{ color: '#3b82f6' }} />
-                        </Box>
-                        <Box direction="vertical" gap="2px">
-                            <Text size="tiny" secondary>Orders (30 days)</Text>
-                            <Text size="medium" weight="bold">
-                                {analytics.totalOrders}
-                            </Text>
-                        </Box>
-                    </Box>
-                </Card.Content>
-            </Card>
+            <MetricCard
+                icon={<Icons.Package />}
+                title="Orders (30 days)"
+                value={analytics.totalOrders.toString()}
+                bgColor="#eff6ff"
+                iconColor="#3b82f6"
+                isLoading={analytics.isLoading}
+            />
 
             {/* Average Order Value */}
-            <Card>
-                <Card.Content>
-                    <Box
-                        direction="horizontal"
-                        align="center"
-                        gap="12px"
-                        paddingTop="12px"
-                        paddingBottom="12px"
-                        paddingLeft="16px"
-                        paddingRight="16px"
-                    >
-                        <Box
-                            width="40px"
-                            height="40px"
-                            borderRadius="50%"
-                            backgroundColor="#fef3c7"
-                            align="center"
-                            verticalAlign="middle"
-                        >
-                            <Icons.ArrowUp size="20px" style={{ color: '#f59e0b' }} />
-                        </Box>
-                        <Box direction="vertical" gap="2px">
-                            <Text size="tiny" secondary>Avg. Order Value</Text>
-                            <Text size="medium" weight="bold">
-                                {formatCurrency(analytics.averageOrderValue, analytics.currency)}
-                            </Text>
-                        </Box>
-                    </Box>
-                </Card.Content>
-            </Card>
+            <MetricCard
+                icon={<Icons.ArrowUp />}
+                title="Avg. Order Value"
+                value={formatCurrency(analytics.averageOrderValue, analytics.currency)}
+                bgColor="#fef3c7"
+                iconColor="#f59e0b"
+                isLoading={analytics.isLoading}
+            />
 
             {/* Order Status Summary */}
             <Card>
@@ -226,19 +229,27 @@ export const OrderAnalytics: React.FC = observer(() => {
                             align="center"
                             verticalAlign="middle"
                         >
-                            <Icons.StatusComplete size="20px" style={{ color: '#8b5cf6' }} />
+                            {analytics.isLoading ? (
+                                <Loader size="tiny" />
+                            ) : (
+                                <Icons.StatusComplete size="20px" style={{ color: '#8b5cf6' }} />
+                            )}
                         </Box>
                         <Box direction="vertical" gap="2px">
                             <Text size="tiny" secondary>Fulfillment Rate</Text>
                             <Text size="medium" weight="bold">
-                                {analytics.totalOrders > 0
-                                    ? `${Math.round((analytics.fulfilledOrders / analytics.totalOrders) * 100)}%`
-                                    : '0%'
+                                {analytics.isLoading
+                                    ? 'Loading...'
+                                    : analytics.totalOrders > 0
+                                        ? `${Math.round((analytics.fulfilledOrders / analytics.totalOrders) * 100)}%`
+                                        : '0%'
                                 }
                             </Text>
-                            <Text size="tiny" secondary>
-                                {analytics.fulfilledOrders} of {analytics.totalOrders} fulfilled
-                            </Text>
+                            {!analytics.isLoading && (
+                                <Text size="tiny" secondary>
+                                    {analytics.fulfilledOrders} of {analytics.totalOrders} fulfilled
+                                </Text>
+                            )}
                         </Box>
                     </Box>
                 </Card.Content>

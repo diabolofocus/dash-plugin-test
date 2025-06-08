@@ -9,7 +9,6 @@ import { StatusBadge } from '../shared/StatusBadge';
 import { formatDate } from '../../utils/formatters';
 import type { Order } from '../../types/Order';
 import { dashboard } from '@wix/dashboard';
-import { pages } from '@wix/ecom/dashboard';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { orders } from '@wix/ecom';
@@ -76,13 +75,27 @@ export const OrdersTable: React.FC = observer(() => {
         try {
             console.log(`View Order clicked for order #${order.number}`);
 
-            // Navigate to order details page
-            const destination = pages.orderDetails({
-                id: order._id
+            // Navigate using the correct Wix eCommerce page structure
+            dashboard.navigate({
+                pageId: "ecom-platform.order-details", // Wix eCommerce order details page ID
+                relativeUrl: `/${order._id}` // Pass the order ID as the path
             });
-            dashboard.navigate(destination);
+
         } catch (error) {
             console.error('Failed to navigate to order details:', error);
+
+            // Fallback: Direct URL navigation
+            try {
+                const currentSiteId = window.location.hostname.split('.')[0]; // Extract site ID
+                const orderUrl = `https://manage.wix.com/dashboard/${currentSiteId}/ecom-platform/order-details/${order._id}`;
+                window.open(orderUrl, '_blank');
+            } catch (fallbackError) {
+                console.error('Fallback navigation failed:', fallbackError);
+
+                // Final fallback: Show order in your interface
+                orderController.selectOrder(order);
+                alert(`Order #${order.number} details are now displayed in the right panel.`);
+            }
         }
     };
 
@@ -566,7 +579,7 @@ export const OrdersTable: React.FC = observer(() => {
                     style={{ backgroundColor: 'white', borderRadius: '8px 8px 0 0' }}
                 >
                     <Heading size="medium">
-                        Recent Orders ({statusFilteredOrders.length})
+                        Recent Orders
                         {orderStore.loadingStatus && (
                             <Text size="small" secondary> {orderStore.loadingStatus}</Text>
                         )}
@@ -634,8 +647,8 @@ export const OrdersTable: React.FC = observer(() => {
                             {/* Add loading indicator for "load more" */}
                             {orderStore.isLoadingMore && (
                                 <Box align="center" padding="24px 0px">
-                                    <Loader size="small" />
-                                    <Text size="small" secondary>Loading more orders...</Text>
+                                    <Loader size="tiny" />
+                                    <Text size="small" secondary>Loading more orders..</Text>
                                 </Box>
                             )}
 

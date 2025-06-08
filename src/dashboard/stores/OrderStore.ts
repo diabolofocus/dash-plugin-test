@@ -1,97 +1,90 @@
-// stores/OrderStore.ts - FIXED with proper imports and missing properties
-import { makeAutoObservable, observable, action } from 'mobx';
-import type { Order, OrderStatus, ConnectionStatus } from '../types/Order'; // 🔥 FIXED: Import ConnectionStatus
+import { makeAutoObservable } from 'mobx';
+import type { Order, OrderStatus, ConnectionStatus } from '../types/Order';
+
+interface FormattedAnalytics {
+    totalSales: number;
+    totalOrders: number;
+    totalSessions: number;
+    averageOrderValue: number;
+    currency: string;
+    salesChange: number;
+    ordersChange: number;
+    sessionsChange: number;
+    aovChange: number;
+    period: string;
+}
 
 export class OrderStore {
+    // Analytics properties
+    analyticsData: any = null;
+    analyticsLoading: boolean = false;
+    analyticsError: string | null = null;
+    formattedAnalytics: FormattedAnalytics | null = null;
+    selectedAnalyticsPeriod: string = '30days';
 
-    // Add these analytics properties to OrderStore.ts
-    @observable analyticsData: any = null;
-    @observable analyticsLoading: boolean = false;
-    @observable analyticsError: string | null = null;
-
-    @action
-    setAnalyticsData(data: any) {
-        this.analyticsData = data;
-    }
-
-    @action
-    setAnalyticsLoading(loading: boolean) {
-        this.analyticsLoading = loading;
-    }
-
-    @action
-    setAnalyticsError(error: string | null) {
-        this.analyticsError = error;
-    }
-
-    // Getter for formatted analytics
-    get formattedAnalytics() {
-        if (!this.analyticsData) return null;
-
-        const totalSales = this.analyticsData.TOTAL_SALES?.total || 0;
-        const totalOrders = this.analyticsData.TOTAL_ORDERS?.total || 0;
-        const totalSessions = this.analyticsData.TOTAL_SESSIONS?.total || 0;
-
-        return {
-            totalSales: totalSales,
-            totalOrders: totalOrders,
-            totalSessions: totalSessions,
-            averageOrderValue: totalOrders > 0 ? totalSales / totalOrders : 0,
-            currency: '€' // You might want to get this from site settings
-        };
-    }
-
-    // Add these properties to OrderStore.ts
-    @observable hasMoreOrders: boolean = false;
-
-    @observable nextCursor: string = '';
-    @observable isLoadingMore: boolean = false;
-    @observable loadingStatus: string = '';
-
-    @action
-    setHasMoreOrders(hasMore: boolean) {
-        this.hasMoreOrders = hasMore;
-    }
-
-    @action
-    setNextCursor(cursor: string) {
-        this.nextCursor = cursor;
-    }
-
-    @action
-    setIsLoadingMore(loading: boolean) {
-        this.isLoadingMore = loading;
-    }
-
-    @action
-    setLoadingStatus(status: string) {
-        this.loadingStatus = status;
-    }
-
-    @action
-    appendOrders(newOrders: Order[]) {
-        this.orders = [...this.orders, ...newOrders];
-    }
-
-
+    // Order management properties
+    hasMoreOrders: boolean = false;
+    nextCursor: string = '';
+    isLoadingMore: boolean = false;
+    loadingStatus: string = '';
     orders: Order[] = [];
     selectedOrder: Order | null = null;
-    connectionStatus: ConnectionStatus = 'disconnected'; // 🔥 FIXED: Use proper type
-    searchQuery: string = ''; // 🔥 ADDED: Missing search query property
-
-    // 🔥 FIXED: Proper pagination type with totalCount
+    connectionStatus: ConnectionStatus = 'disconnected';
+    searchQuery: string = '';
     pagination = {
         hasNext: false,
         nextCursor: '',
         prevCursor: '',
-        totalCount: 0  // 🔥 ADDED: Include totalCount
+        totalCount: 0
     };
 
     constructor() {
+        // This automatically makes everything observable and actions
         makeAutoObservable(this);
     }
 
-    // Order management
+    // Analytics methods
+    setAnalyticsData(data: any) {
+        this.analyticsData = data;
+    }
+
+    setAnalyticsLoading(loading: boolean) {
+        this.analyticsLoading = loading;
+    }
+
+    setAnalyticsError(error: string | null) {
+        this.analyticsError = error;
+    }
+
+    setFormattedAnalytics(analytics: FormattedAnalytics | null) {
+        this.formattedAnalytics = analytics;
+    }
+
+    setSelectedAnalyticsPeriod(period: string) {
+        this.selectedAnalyticsPeriod = period;
+    }
+
+    // Order management methods
+    setHasMoreOrders(hasMore: boolean) {
+        this.hasMoreOrders = hasMore;
+    }
+
+    setNextCursor(cursor: string) {
+        this.nextCursor = cursor;
+    }
+
+    setIsLoadingMore(loading: boolean) {
+        this.isLoadingMore = loading;
+    }
+
+    setLoadingStatus(status: string) {
+        this.loadingStatus = status;
+    }
+
+    appendOrders(newOrders: Order[]) {
+        this.orders = [...this.orders, ...newOrders];
+    }
+
     setOrders(orders: Order[]) {
         this.orders = orders;
     }
@@ -114,7 +107,6 @@ export class OrderStore {
             };
         }
 
-        // Update selected order if it's the same one
         if (this.selectedOrder?._id === orderId) {
             this.selectedOrder = {
                 ...this.selectedOrder,
@@ -129,7 +121,6 @@ export class OrderStore {
             this.orders[orderIndex] = updatedOrder;
         }
 
-        // Update selected order if it's the same one
         if (this.selectedOrder?._id === updatedOrder._id) {
             this.selectedOrder = updatedOrder;
         }
@@ -143,7 +134,6 @@ export class OrderStore {
         }
     }
 
-    // Search functionality - 🔥 ADDED: Missing search methods
     setSearchQuery(query: string) {
         this.searchQuery = query;
     }
@@ -152,17 +142,15 @@ export class OrderStore {
         this.searchQuery = '';
     }
 
-    // Connection status
     setConnectionStatus(status: ConnectionStatus) {
         this.connectionStatus = status;
     }
 
-    // Pagination
     setPagination(pagination: {
         hasNext: boolean;
         nextCursor: string;
         prevCursor: string;
-        totalCount?: number; // Add this optional property
+        totalCount?: number;
     }) {
         this.pagination = {
             hasNext: pagination.hasNext,
@@ -172,12 +160,78 @@ export class OrderStore {
         };
     }
 
-    // Getters
+    // Helper method to get orders for the selected analytics period
+    getOrdersForSelectedPeriod(): Order[] {
+        const period = this.selectedAnalyticsPeriod;
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        let startDate: Date;
+
+        switch (period) {
+            case 'today':
+                startDate = today;
+                break;
+            case 'yesterday':
+                startDate = new Date(today);
+                startDate.setDate(startDate.getDate() - 1);
+                break;
+            case '7days':
+                startDate = new Date(today);
+                startDate.setDate(startDate.getDate() - 7);
+                break;
+            case '30days':
+                startDate = new Date(today);
+                startDate.setDate(startDate.getDate() - 30);
+                break;
+            case 'thisweek':
+                startDate = new Date(today);
+                const dayOfWeek = startDate.getDay();
+                startDate.setDate(startDate.getDate() - dayOfWeek);
+                break;
+            case 'thismonth':
+                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                break;
+            case '365days':
+                startDate = new Date(today);
+                startDate.setDate(startDate.getDate() - 365);
+                break;
+            case 'thisyear':
+                startDate = new Date(now.getFullYear(), 0, 1);
+                break;
+            default:
+                startDate = new Date(today);
+                startDate.setDate(startDate.getDate() - 30);
+        }
+
+        startDate.setHours(0, 0, 0, 0);
+
+        return this.orders.filter(order => {
+            const orderDate = new Date(order._createdDate);
+            return orderDate >= startDate;
+        });
+    }
+
+    // Helper method to get period label for display
+    getPeriodLabel(): string {
+        const labels: { [key: string]: string } = {
+            'today': 'today',
+            'yesterday': 'yesterday',
+            '7days': '7 days',
+            '30days': '30 days',
+            'thisweek': 'this week',
+            'thismonth': 'this month',
+            '365days': '365 days',
+            'thisyear': 'this year'
+        };
+        return labels[this.selectedAnalyticsPeriod] || '30 days';
+    }
+
+    // Computed properties
     get ordersCount() {
         return this.orders.length;
     }
 
-    // 🔥 ADDED: Missing filteredOrders getter
     get filteredOrders() {
         if (!this.searchQuery.trim()) {
             return this.orders;
@@ -185,7 +239,6 @@ export class OrderStore {
 
         const term = this.searchQuery.toLowerCase();
         return this.orders.filter(order => {
-            // Get customer info from multiple sources
             const recipientContact = order.rawOrder?.recipientInfo?.contactDetails;
             const billingContact = order.rawOrder?.billingInfo?.contactDetails;
 
@@ -234,9 +287,54 @@ export class OrderStore {
         return this.connectionStatus === 'connected';
     }
 
-    // Add these methods to your OrderStore.ts class
+    get oldestUnfulfilledOrder() {
+        const unfulfilledOrders = this.orders.filter(order =>
+            order.status === 'NOT_FULFILLED' || order.status === 'PARTIALLY_FULFILLED'
+        );
 
-    // Analytics and reporting methods
+        if (unfulfilledOrders.length === 0) return null;
+
+        return unfulfilledOrders.sort((a, b) =>
+            new Date(a._createdDate).getTime() - new Date(b._createdDate).getTime()
+        )[0];
+    }
+
+    get unfulfilledOrdersCount() {
+        return this.orders.filter(order =>
+            order.status === 'NOT_FULFILLED' || order.status === 'PARTIALLY_FULFILLED'
+        ).length;
+    }
+
+    get last30DaysAnalytics() {
+        const last30DaysOrders = this.getLast30DaysOrders();
+        const salesMetrics = this.calculateSalesMetrics(last30DaysOrders);
+        const fulfillmentStats = this.getFulfillmentStats(last30DaysOrders);
+
+        return {
+            ...salesMetrics,
+            ...fulfillmentStats,
+            dateRange: {
+                start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+                end: new Date()
+            }
+        };
+    }
+
+    // Analytics computed property that uses selected period
+    get selectedPeriodAnalytics() {
+        const selectedPeriodOrders = this.getOrdersForSelectedPeriod();
+        const salesMetrics = this.calculateSalesMetrics(selectedPeriodOrders);
+        const fulfillmentStats = this.getFulfillmentStats(selectedPeriodOrders);
+
+        return {
+            ...salesMetrics,
+            ...fulfillmentStats,
+            period: this.selectedAnalyticsPeriod,
+            periodLabel: this.getPeriodLabel()
+        };
+    }
+
+    // Helper methods
     getLast30DaysOrders(): Order[] {
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -256,10 +354,9 @@ export class OrderStore {
 
     calculateSalesMetrics(orders: Order[] = this.orders) {
         let totalSales = 0;
-        let currency = '€';
+        let currency = 'EUR';
 
         orders.forEach(order => {
-            // Extract numeric value from formatted price
             const priceMatch = order.total.match(/[\d,]+\.?\d*/);
             if (priceMatch) {
                 const numericValue = parseFloat(priceMatch[0].replace(',', ''));
@@ -268,7 +365,6 @@ export class OrderStore {
                 }
             }
 
-            // Extract currency symbol
             const currencyMatch = order.total.match(/[€$£¥]/);
             if (currencyMatch) {
                 currency = currencyMatch[0];
@@ -299,44 +395,6 @@ export class OrderStore {
         };
     }
 
-    // Getter for 30-day analytics
-    get last30DaysAnalytics() {
-        const last30DaysOrders = this.getLast30DaysOrders();
-        const salesMetrics = this.calculateSalesMetrics(last30DaysOrders);
-        const fulfillmentStats = this.getFulfillmentStats(last30DaysOrders);
-
-        return {
-            ...salesMetrics,
-            ...fulfillmentStats,
-            dateRange: {
-                start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-                end: new Date()
-            }
-        };
-    }
-
-    // Missing oldestUnfulfilledOrder getter
-    get oldestUnfulfilledOrder() {
-        const unfulfilledOrders = this.orders.filter(order =>
-            order.status === 'NOT_FULFILLED' || order.status === 'PARTIALLY_FULFILLED'
-        );
-
-        if (unfulfilledOrders.length === 0) return null;
-
-        // Sort by creation date (oldest first)
-        return unfulfilledOrders.sort((a, b) =>
-            new Date(a._createdDate).getTime() - new Date(b._createdDate).getTime()
-        )[0];
-    }
-
-    // 🔥 ADDED: Missing unfulfilledOrdersCount getter
-    get unfulfilledOrdersCount() {
-        return this.orders.filter(order =>
-            order.status === 'NOT_FULFILLED' || order.status === 'PARTIALLY_FULFILLED'
-        ).length;
-    }
-
-    // Search and filter
     getOrderById(orderId: string): Order | undefined {
         return this.orders.find(order => order._id === orderId);
     }
@@ -368,7 +426,6 @@ export class OrderStore {
         return this.orders.filter(order => order.status === status);
     }
 
-    // Statistics
     getOrderStats() {
         return {
             total: this.orders.length,
@@ -383,9 +440,7 @@ export class OrderStore {
         };
     }
 
-    // Bulk operations
     selectMultipleOrders(orderIds: string[]) {
-        // For future bulk operations
         console.log('Bulk selection not implemented yet:', orderIds);
     }
 
@@ -395,16 +450,23 @@ export class OrderStore {
         });
     }
 
-    // Debug
     logCurrentState() {
-        console.log('📊 OrderStore State:', {
+        console.log('OrderStore State:', {
             ordersCount: this.ordersCount,
             selectedOrder: this.selectedOrder?.number || 'none',
             connectionStatus: this.connectionStatus,
             searchQuery: this.searchQuery,
             filteredCount: this.filteredOrders.length,
             pagination: this.pagination,
-            stats: this.getOrderStats()
+            stats: this.getOrderStats(),
+            analytics: {
+                loading: this.analyticsLoading,
+                error: this.analyticsError,
+                hasData: !!this.analyticsData,
+                hasFormattedData: !!this.formattedAnalytics,
+                selectedPeriod: this.selectedAnalyticsPeriod,
+                periodLabel: this.getPeriodLabel()
+            }
         });
     }
 }

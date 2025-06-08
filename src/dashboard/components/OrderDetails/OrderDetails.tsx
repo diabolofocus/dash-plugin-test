@@ -17,7 +17,6 @@ import { BillingAddress } from './BillingAddress'; // New BillingAddress compone
 import { ExtendedFields } from './ExtendedFields';
 import { CustomFields } from './CustomFields';
 import { dashboard } from '@wix/dashboard';
-import { pages } from '@wix/ecom/dashboard';
 import type { Order } from '../../types/Order';
 
 
@@ -44,8 +43,7 @@ export const OrderDetails: React.FC = observer(() => {
 
     const handleOrderLinkClick = () => {
         try {
-            // Get the selected order from your store/state
-            const order = orderStore.selectedOrder; // or however you access the current order
+            const order = orderStore.selectedOrder;
 
             if (!order) {
                 console.warn('No order selected for navigation');
@@ -54,13 +52,17 @@ export const OrderDetails: React.FC = observer(() => {
 
             console.log(`Order link clicked for order #${order.number}`);
 
-            // Navigate to order details page using the same logic as the View Order button
-            const destination = pages.orderDetails({
-                id: order._id
+            // Same approach as OrdersTable for consistency
+            dashboard.navigate({
+                pageId: "stores.orders",
+                relativeUrl: `?order=${order._id}`
             });
-            dashboard.navigate(destination);
+
         } catch (error) {
             console.error('Failed to navigate to order details:', error);
+
+            // Simple fallback: Show that details are already displayed
+            alert(`Order #${selectedOrder?.number || 'unknown'} details are displayed in this panel.`);
         }
     };
 
