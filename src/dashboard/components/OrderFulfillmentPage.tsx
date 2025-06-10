@@ -1,7 +1,6 @@
-// components/OrderFulfillmentPage.tsx
 import React, { useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
-import { Page, Layout, Cell, WixDesignSystemProvider, Box } from '@wix/design-system';
+import { Page, Cell, Box, WixDesignSystemProvider } from '@wix/design-system';
 
 import '@wix/design-system/styles.global.css';
 
@@ -81,6 +80,73 @@ export const OrderFulfillmentPage: React.FC = observer(() => {
             color: #666666 !important;
             border-color: #CCCCCC !important;
           }
+
+          /* Debug styles to see if components are loading */
+          .wix-page-header {
+            background-color: #ffffff;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 16px 16px;
+          }
+          
+          .wix-page-content {
+            padding: 24px;
+            min-height: 100vh;
+            background-color: #f8f9fa;
+          }
+
+          /* FIXED: Force sticky column height and scrolling */
+          .sticky-order-details {
+            position: sticky !important;
+            top: 85px !important;
+            width: 30% !important;
+            height: calc(100vh - 230px) !important;
+            max-height: calc(100vh - 230px) !important;
+            min-height: calc(100vh - 230px) !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            align-self: flex-start !important;
+            border-radius: 8px;
+            
+            scrollbar-width: none !important; /* Firefox */
+            -ms-overflow-style: none !important; /* Internet Explorer 10+ */
+          }
+
+          /* Ensure the main content container has proper height */
+          .main-content-container {
+            min-height: calc(100vh - 226px) !important;
+          }
+
+          /* Make sure the horizontal container doesn't interfere */
+          .horizontal-container {
+            align-items: flex-start !important;
+            min-height: calc(100vh - 226px) !important;
+          }
+
+          /* Ensure OrdersTable maintains horizontal scroll */
+          .orders-table-container {
+            width: 100%;
+            overflow-x: auto;
+            min-width: 0;
+          }
+
+          /* Force table to maintain its scroll behavior */
+          .orders-table-container table {
+            min-width: max-content;
+          }
+
+          /* Responsive grid adjustments */
+          @media (max-width: 1200px) {
+            .main-grid-container {
+              grid-template-columns: 1fr 350px !important;
+            }
+          }
+
+          @media (max-width: 900px) {
+            .main-grid-container {
+              grid-template-columns: 1fr !important;
+              grid-template-rows: auto auto !important;
+            }
+          }
         `}
       </style>
 
@@ -91,23 +157,43 @@ export const OrderFulfillmentPage: React.FC = observer(() => {
           actionsBar={<ActionsBar />}
         />
         <Page.Content>
-          <Layout>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '24px',
+            height: '100%'
+          }}>
             {/* Connection Status Row */}
-            <Cell>
-              <ConnectionStatus />
-            </Cell>
+            <ConnectionStatus />
 
-            {/* Two-thirds layout with sidebar */}
-            <Cell span={8}>
-              <OrdersTable />
-            </Cell>
+            {/* Two-thirds layout with sidebar - both sticky */}
+            <div className="main-grid-container" style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 400px', // Fixed width for details panel
+              gap: '24px',
+              flex: 1,
+              minHeight: 0, // Important for proper scrolling
+              alignItems: 'start'
+            }}>
+              <div style={{
+                minWidth: 0, // Important for table overflow
+                overflow: 'hidden' // Ensures table handles its own overflow
+              }}>
+                <Page.Sticky>
+                  <OrdersTable />
+                </Page.Sticky>
+              </div>
 
-            <Cell span={4}>
-              <Page.Sticky>
-                <OrderDetails />
-              </Page.Sticky>
-            </Cell>
-          </Layout>
+              <div style={{
+                minWidth: '400px', // Ensure details panel doesn't shrink too much
+                maxWidth: '400px'
+              }}>
+                <Page.Sticky>
+                  <OrderDetails />
+                </Page.Sticky>
+              </div>
+            </div>
+          </div>
         </Page.Content>
       </Page>
     </WixDesignSystemProvider>

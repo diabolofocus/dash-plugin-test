@@ -2,12 +2,10 @@
 
 import { webMethod, Permissions } from '@wix/web-methods';
 
-// Import the simplified elevated web methods
 import {
   smartFulfillOrderElevated,
 } from './fulfillment-elevated.web';
 
-// Define the email info interface
 interface EmailInfo {
   emailRequested: boolean;
   emailSentAutomatically: boolean;

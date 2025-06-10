@@ -358,7 +358,7 @@ export const CompactAnalytics: React.FC = observer(() => {
                         style={{
                             color: percentageData.color,
                             fontWeight: '700',
-                            fontSize: '9px',
+                            fontSize: '10px',
                             lineHeight: '1',
                             fontFamily: 'HelveticaNeueW01-45Ligh, HelveticaNeueW02-45Ligh, HelveticaNeueW10-45Ligh, Helvetica Neue, Helvetica, Arial, sans-serif',
                             letterSpacing: '1.3px'  // Add this for character spacing
@@ -433,6 +433,7 @@ export const CompactAnalytics: React.FC = observer(() => {
                             options={timePeriodOptions}
                             onSelect={handlePeriodChange}
                             placement="bottom-end"
+                            zIndex={9999}
                         >
                             {({ toggle, selectedOption = {} }) => (
                                 <TextButton

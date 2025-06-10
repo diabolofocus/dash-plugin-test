@@ -1,6 +1,13 @@
-// services/OrderService.ts - UPDATED with infinite loading support
+// services/OrderService.ts - FIXED: Direct imports instead of dynamic imports
 
 import type { OrdersResponse, FulfillOrderParams, FulfillmentResponse, Order, OrderStatus, PaymentStatus } from '../types/Order';
+
+// 🔥 FIXED: Import web methods directly instead of using dynamic imports
+import {
+    testOrdersConnection,
+    getSingleOrder,
+    fulfillOrderInWix
+} from '../../backend/orders-api.web';
 
 // 🔥 UPDATED: Add sendShippingEmail to the FulfillOrderParams interface
 interface ExtendedFulfillOrderParams extends FulfillOrderParams {
@@ -28,8 +35,8 @@ export class OrderService {
         try {
             // Fetch orders until we reach the initial limit
             while (totalFetched < initialLimit) {
-                const backendModule = await import('../../backend/orders-api.web');
-                const result = await backendModule.testOrdersConnection({
+                // 🔥 FIXED: Use direct import instead of dynamic import
+                const result = await testOrdersConnection({
                     limit: Math.min(batchSize, initialLimit - totalFetched),
                     cursor: cursor
                 });
@@ -103,8 +110,8 @@ export class OrderService {
 
         try {
             while (totalFetched < limit && currentCursor) {
-                const backendModule = await import('../../backend/orders-api.web');
-                const result = await backendModule.testOrdersConnection({
+                // 🔥 FIXED: Use direct import instead of dynamic import
+                const result = await testOrdersConnection({
                     limit: Math.min(batchSize, limit - totalFetched),
                     cursor: currentCursor
                 });
@@ -163,14 +170,8 @@ export class OrderService {
             try {
                 console.log(`🚀 [${isProd ? 'PROD' : 'DEV'}] Frontend: Fetch orders attempt ${attempt}/${maxRetries}`);
 
-                const backendModule = await import('../../backend/orders-api.web');
-                console.log(`✅ [${isProd ? 'PROD' : 'DEV'}] Backend module imported successfully:`, {
-                    hasTestOrdersConnection: typeof backendModule.testOrdersConnection === 'function',
-                    hasFulfillOrderInWix: typeof backendModule.fulfillOrderInWix === 'function',
-                    moduleKeys: Object.keys(backendModule)
-                });
-
-                const result = await backendModule.testOrdersConnection({ limit, cursor });
+                // 🔥 FIXED: Use direct import instead of dynamic import
+                const result = await testOrdersConnection({ limit, cursor });
 
                 console.log(`📊 [${isProd ? 'PROD' : 'DEV'}] Frontend: Orders fetch attempt ${attempt} result:`, {
                     success: result.success,
@@ -250,51 +251,31 @@ export class OrderService {
         };
     }
 
-
-
     async fetchSingleOrder(orderId: string): Promise<{ success: boolean; order?: Order; error?: string }> {
         const isProd = !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
 
         try {
             console.log(`🚀 [${isProd ? 'PROD' : 'DEV'}] Frontend: Fetching single order ${orderId}`);
 
-            const backendModule = await import('../../backend/orders-api.web');
-            console.log(`✅ [${isProd ? 'PROD' : 'DEV'}] Backend module imported for single order:`, {
-                hasGetSingleOrder: typeof backendModule.getSingleOrder === 'function'
+            // 🔥 FIXED: Use direct import instead of dynamic import
+            const result = await getSingleOrder(orderId);
+
+            console.log(`📊 [${isProd ? 'PROD' : 'DEV'}] Frontend: Single order result:`, {
+                success: result.success,
+                hasOrder: !!result.order,
+                errorPresent: !!result.error
             });
 
-            if (typeof backendModule.getSingleOrder === 'function') {
-                const result = await backendModule.getSingleOrder(orderId);
-
-                console.log(`📊 [${isProd ? 'PROD' : 'DEV'}] Frontend: Single order result:`, {
-                    success: result.success,
-                    hasOrder: !!result.order,
-                    errorPresent: !!result.error
-                });
-
-                if (result.success && result.order) {
-                    return {
-                        success: true,
-                        order: this.transformOrderFromBackend(result.order)
-                    };
-                } else {
-                    return {
-                        success: false,
-                        error: result.error || 'Order not found'
-                    };
-                }
+            if (result.success && result.order) {
+                return {
+                    success: true,
+                    order: this.transformOrderFromBackend(result.order)
+                };
             } else {
-                console.warn(`⚠️ [${isProd ? 'PROD' : 'DEV'}] Frontend: getSingleOrder not available, using fallback`);
-                const allOrdersResult = await this.fetchOrders({ limit: 100 });
-
-                if (allOrdersResult.success) {
-                    const foundOrder = allOrdersResult.orders.find(order => order._id === orderId);
-                    if (foundOrder) {
-                        return { success: true, order: foundOrder };
-                    }
-                }
-
-                return { success: false, error: 'Order not found in fallback method' };
+                return {
+                    success: false,
+                    error: result.error || 'Order not found'
+                };
             }
 
         } catch (error: any) {
@@ -325,21 +306,12 @@ export class OrderService {
                 environment: isProd ? 'PRODUCTION' : 'DEVELOPMENT'
             });
 
-            const backendModule = await import('../../backend/orders-api.web');
-            console.log(`✅ [${isProd ? 'PROD' : 'DEV'}] Backend module imported for fulfillment:`, {
-                hasFulfillOrderInWix: typeof backendModule.fulfillOrderInWix === 'function',
-                moduleKeys: Object.keys(backendModule)
-            });
-
-            if (typeof backendModule.fulfillOrderInWix !== 'function') {
-                throw new Error('fulfillOrderInWix API is not available in backend module');
-            }
-
             console.log(`📞 [${isProd ? 'PROD' : 'DEV'}] Frontend: Calling backend fulfillOrderInWix...`);
             const startTime = Date.now();
 
+            // 🔥 FIXED: Use direct import instead of dynamic import
             // 🔥 UPDATED: Pass all parameters including sendShippingEmail
-            const result = await backendModule.fulfillOrderInWix({
+            const result = await fulfillOrderInWix({
                 orderId: params.orderId,
                 trackingNumber: params.trackingNumber,
                 shippingProvider: params.shippingProvider,

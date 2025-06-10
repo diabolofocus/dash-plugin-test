@@ -15,10 +15,9 @@ import { StatusBadge } from '../shared/StatusBadge';
 import { BillingInfo } from './BillingInfo'; // Use existing BillingInfo component
 import { BillingAddress } from './BillingAddress'; // New BillingAddress component
 import { ExtendedFields } from './ExtendedFields';
-import { CustomFields } from './CustomFields';
+import { CustomAndExtendedFields } from './CustomAndExtendedFields';
 import { dashboard } from '@wix/dashboard';
 import type { Order } from '../../types/Order';
-
 
 export const OrderDetails: React.FC = observer(() => {
     const { orderStore } = useStores();
@@ -80,9 +79,7 @@ export const OrderDetails: React.FC = observer(() => {
     };
 
     return (
-        <Box gap="16px"
-            direction="vertical"
-        >
+        <Box gap="16px" direction="vertical">
             {/* Main Order Information Card */}
             <Card>
                 {/* Order Header */}
@@ -136,13 +133,8 @@ export const OrderDetails: React.FC = observer(() => {
                         {/* Billing Address Section */}
                         <BillingAddress order={selectedOrder} />
 
-                        {/* Extended Fields Section - Only show divider if ExtendedFields will render */}
-                        {selectedOrder.customFields && selectedOrder.customFields.length > 0 && (
-                            <>
-                                <Card.Divider />
-                                <CustomFields order={selectedOrder} />
-                            </>
-                        )}
+                        {/* Custom Fields and Extended Fields Section */}
+                        <CustomAndExtendedFields order={selectedOrder} />
 
                         <Card.Divider />
 

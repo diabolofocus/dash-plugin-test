@@ -1,7 +1,6 @@
 // components/OrderDetails/OrderActivity.tsx
-import React, { useState } from 'react';
-import { Box, Text, Button, InputArea } from '@wix/design-system';
-import { useOrderController } from '../../hooks/useOrderController';
+import React from 'react';
+import { Box, Text } from '@wix/design-system';
 import type { Order } from '../../types/Order';
 
 interface OrderActivityProps {
@@ -73,9 +72,6 @@ const formatActivityDateTime = (dateString: string): { date: string; time: strin
 };
 
 export const OrderActivity: React.FC<OrderActivityProps> = ({ order }) => {
-    const orderController = useOrderController();
-    const [newNote, setNewNote] = useState('');
-
     // Get activities from the raw order
     const activities = order.rawOrder?.activities || [];
 
@@ -84,50 +80,11 @@ export const OrderActivity: React.FC<OrderActivityProps> = ({ order }) => {
         new Date(b._createdDate).getTime() - new Date(a._createdDate).getTime()
     );
 
-    const handleAddNote = () => {
-        if (newNote.trim()) {
-            // TODO: Implement add note functionality
-            console.log('Adding note:', newNote);
-            // You would call a backend method here to add the note
-            setNewNote('');
-        }
-    };
-
     return (
         <Box gap="24px" direction="vertical" style={{
             paddingTop: '16px',
         }}>
             <Text size="medium" weight="bold">Order activity</Text>
-
-            {/* Add Note Section */}
-            <Box gap="16px" direction="vertical" >
-
-                <Box gap="8px" direction="vertical">
-                    <Text size="small" secondary>Add a note (Your customer won't see this)</Text>
-
-                    <InputArea
-                        value={newNote}
-                        onChange={(e) => setNewNote(e.target.value)}
-                        placeholder="Enter your note here..."
-                        size="small"
-                        autoGrow={true}
-                        minRowsAutoGrow={1}
-                        resizable
-                        rows={2}
-                        maxLength={300}
-                    />
-
-                </Box>
-
-                <Button
-                    size="small"
-                    disabled={!newNote.trim()}
-                    onClick={handleAddNote}
-                    priority="secondary"
-                >
-                    Add Note
-                </Button>
-            </Box>
 
             {/* Activity Timeline */}
             <Box gap="0px" direction="vertical" style={{ position: 'relative' }}>
@@ -262,9 +219,6 @@ export const OrderActivity: React.FC<OrderActivityProps> = ({ order }) => {
                     })
                 )}
             </Box>
-
-
-
         </Box>
     );
 };

@@ -16,9 +16,98 @@ const getBillingInfo = (order: Order) => {
     return null;
 };
 
+const getShippingAddress = (order: Order) => {
+    // Try to get shipping address from different possible locations
+    if (order.shippingAddress) return order.shippingAddress;
+    if (order.rawOrder?.shippingInfo?.shipmentDetails?.address) return order.rawOrder.shippingInfo.shipmentDetails.address;
+    if (order.rawOrder?.recipientInfo?.address) return order.rawOrder.recipientInfo.address;
+    if (order.rawOrder?.recipientInfo?.contactDetails?.address) return order.rawOrder.recipientInfo.contactDetails.address;
+    return null;
+};
+
+// Function to normalize and compare addresses
+const compareAddresses = (billingAddress: any, shippingAddress: any): boolean => {
+    if (!billingAddress || !shippingAddress) return false;
+
+    // Helper function to normalize string values for comparison
+    const normalize = (str: string | undefined | null): string => {
+        return (str || '').toLowerCase().trim().replace(/\s+/g, ' ');
+    };
+
+    // Helper function to get street address string
+    const getStreetString = (address: any): string => {
+        if (address.streetAddress?.name || address.streetAddress?.number) {
+            return normalize(`${address.streetAddress?.name || ''} ${address.streetAddress?.number || ''}`);
+        }
+        return normalize(address.addressLine1 || '');
+    };
+
+    // Helper function to get apartment/unit string
+    const getApartmentString = (address: any): string => {
+        if (address.streetAddress?.apt) {
+            return normalize(address.streetAddress.apt);
+        }
+        return normalize(address.addressLine2 || '');
+    };
+
+    // Compare key address components
+    const billingStreet = getStreetString(billingAddress);
+    const shippingStreet = getStreetString(shippingAddress);
+
+    const billingApartment = getApartmentString(billingAddress);
+    const shippingApartment = getApartmentString(shippingAddress);
+
+    const billingCity = normalize(billingAddress.city);
+    const shippingCity = normalize(shippingAddress.city);
+
+    const billingPostal = normalize(billingAddress.postalCode);
+    const shippingPostal = normalize(shippingAddress.postalCode);
+
+    const billingCountry = normalize(billingAddress.country);
+    const shippingCountry = normalize(shippingAddress.country);
+
+    // Log comparison for debugging
+    console.log('🔍 Address Comparison:', {
+        billing: {
+            street: billingStreet,
+            apartment: billingApartment,
+            city: billingCity,
+            postal: billingPostal,
+            country: billingCountry
+        },
+        shipping: {
+            street: shippingStreet,
+            apartment: shippingApartment,
+            city: shippingCity,
+            postal: shippingPostal,
+            country: shippingCountry
+        }
+    });
+
+    // Check if all key components match
+    const streetsMatch = billingStreet === shippingStreet && billingStreet !== '';
+    const apartmentsMatch = billingApartment === shippingApartment; // Allow both to be empty
+    const citiesMatch = billingCity === shippingCity && billingCity !== '';
+    const postalMatch = billingPostal === shippingPostal && billingPostal !== '';
+    const countriesMatch = billingCountry === shippingCountry && billingCountry !== '';
+
+    const isMatch = streetsMatch && apartmentsMatch && citiesMatch && postalMatch && countriesMatch;
+
+    console.log(`📍 Address match result: ${isMatch}`, {
+        streetsMatch,
+        apartmentsMatch,
+        citiesMatch,
+        postalMatch,
+        countriesMatch
+    });
+
+    return isMatch;
+};
+
 export const BillingAddress: React.FC<BillingAddressProps> = ({ order }) => {
     const orderController = useOrderController();
     const billingInfo = getBillingInfo(order);
+    const shippingAddress = getShippingAddress(order);
 
     if (!billingInfo || !billingInfo.address) {
         return (
@@ -32,164 +121,197 @@ export const BillingAddress: React.FC<BillingAddressProps> = ({ order }) => {
     const address = billingInfo.address;
     const contactDetails = billingInfo.contactDetails;
 
+    // Check if billing address is the same as shipping address
+    const isSameAsShipping = compareAddresses(address, shippingAddress);
+
     return (
         <Box gap="6px" direction="vertical">
             <Text size="small" className="section-title">Billing Address:</Text>
 
-            {/* Contact Details */}
-            {contactDetails && (
+            {/* Show "Same as shipping" if addresses match */}
+            {isSameAsShipping ? (
+                <Box gap="4px" direction="vertical">
+                    <Text
+                        size="small"
+                        style={{
+                            fontStyle: 'italic',
+                            color: '#666666',
+                            cursor: 'pointer'
+                        }}
+                        className="clickable-info"
+                        onClick={() => {
+                            const fullAddress = [
+                                contactDetails?.firstName && contactDetails?.lastName ?
+                                    `${contactDetails.firstName} ${contactDetails.lastName}` : '',
+                                address.streetAddress?.name && address.streetAddress?.number ?
+                                    `${address.streetAddress.name} ${address.streetAddress.number}` : address.addressLine1,
+                                address.streetAddress?.apt || address.addressLine2,
+                                `${address.postalCode || ''} ${address.city || ''}`.trim(),
+                                address.subdivisionFullname || address.subdivision,
+                                address.countryFullname || getCountryName(address.country)
+                            ].filter(Boolean).join(', ');
+
+                            orderController.copyToClipboard(fullAddress, 'Billing Address (Same as Shipping)');
+                        }}
+                    >
+                        Same as shipping
+                    </Text>
+                </Box>
+            ) : (
+                /* Show full billing address if different from shipping */
                 <Box gap="8px" direction="vertical">
-                    {/* Name */}
-                    {(contactDetails.firstName || contactDetails.lastName) && (
+                    {/* Contact Details */}
+                    {contactDetails && (
+                        <Box gap="8px" direction="vertical">
+                            {/* Name */}
+                            {(contactDetails.firstName || contactDetails.lastName) && (
+                                <Text
+                                    size="small"
+                                    className="clickable-info"
+                                    onClick={() => {
+                                        const fullName = `${contactDetails.firstName || ''} ${contactDetails.lastName || ''}`.trim();
+                                        orderController.copyToClipboard(fullName, 'Billing Name');
+                                    }}
+                                >
+                                    {`${contactDetails.firstName || ''} ${contactDetails.lastName || ''}`.trim()}
+                                </Text>
+                            )}
+
+                            {/* Company */}
+                            {contactDetails.company && (
+                                <Text
+                                    size="small"
+                                    className="clickable-info"
+                                    onClick={() => orderController.copyToClipboard(contactDetails.company, 'Billing Company')}
+                                >
+                                    {contactDetails.company}
+                                </Text>
+                            )}
+
+                            {/* Phone */}
+                            {contactDetails.phone && (
+                                <Text
+                                    size="small"
+                                    className="clickable-info"
+                                    onClick={() => orderController.copyToClipboard(contactDetails.phone, 'Billing Phone')}
+                                >
+                                    {contactDetails.phone}
+                                </Text>
+                            )}
+
+                            {/* VAT ID (for Brazil) */}
+                            {contactDetails.vatId && (
+                                <Text
+                                    size="small"
+                                    className="clickable-info"
+                                    onClick={() => orderController.copyToClipboard(contactDetails.vatId._id, 'VAT ID')}
+                                >
+                                    VAT ID: {contactDetails.vatId._id} ({contactDetails.vatId.type})
+                                </Text>
+                            )}
+                        </Box>
+                    )}
+
+                    {/* Street Name and Number */}
+                    {(address.streetAddress?.name || address.streetAddress?.number) && (
                         <Text
                             size="small"
                             className="clickable-info"
                             onClick={() => {
-                                const fullName = `${contactDetails.firstName || ''} ${contactDetails.lastName || ''}`.trim();
-                                orderController.copyToClipboard(fullName, 'Billing Name');
+                                const streetAddress = `${address.streetAddress?.name || ''} ${address.streetAddress?.number || ''}`.trim();
+                                orderController.copyToClipboard(streetAddress, 'Billing Street Address');
                             }}
                         >
-                            {`${contactDetails.firstName || ''} ${contactDetails.lastName || ''}`.trim()}
+                            {`${address.streetAddress?.name || ''} ${address.streetAddress?.number || ''}`.trim()}
                         </Text>
                     )}
 
-                    {/* Company */}
-                    {contactDetails.company && (
+                    {/* Apartment/Unit Number */}
+                    {address.streetAddress?.apt && (
                         <Text
                             size="small"
                             className="clickable-info"
-                            onClick={() => orderController.copyToClipboard(contactDetails.company, 'Billing Company')}
+                            onClick={() => orderController.copyToClipboard(address.streetAddress!.apt, 'Billing Apartment/Unit')}
                         >
-                            {contactDetails.company}
+                            {address.streetAddress.apt}
                         </Text>
                     )}
 
-                    {/* Phone */}
-                    {contactDetails.phone && (
+                    {/* Fallback to addressLine1/addressLine2 for older structure */}
+                    {!address.streetAddress?.name && address.addressLine1 && (
                         <Text
                             size="small"
                             className="clickable-info"
-                            onClick={() => orderController.copyToClipboard(contactDetails.phone, 'Billing Phone')}
+                            onClick={() => orderController.copyToClipboard(address.addressLine1, 'Billing Street Address')}
                         >
-                            {contactDetails.phone}
+                            {address.addressLine1}
                         </Text>
                     )}
 
-                    {/* VAT ID (for Brazil) */}
-                    {contactDetails.vatId && (
+                    {address.addressLine2 && (
                         <Text
                             size="small"
                             className="clickable-info"
-                            onClick={() => orderController.copyToClipboard(contactDetails.vatId._id, 'VAT ID')}
+                            onClick={() => orderController.copyToClipboard(address.addressLine2, 'Billing Address Line 2')}
                         >
-                            VAT ID: {contactDetails.vatId._id} ({contactDetails.vatId.type})
+                            {address.addressLine2}
+                        </Text>
+                    )}
+
+                    {/* City and Postal Code */}
+                    {(address.city || address.postalCode) && (
+                        <Box direction="horizontal" gap="8px" align="left">
+                            {address.postalCode && (
+                                <Text
+                                    size="small"
+                                    className="clickable-info"
+                                    onClick={() => orderController.copyToClipboard(address.postalCode, 'Billing Postal Code')}
+                                >
+                                    {address.postalCode}
+                                </Text>
+                            )}
+
+                            {address.city && (
+                                <Text
+                                    size="small"
+                                    className="clickable-info"
+                                    onClick={() => orderController.copyToClipboard(address.city, 'Billing City')}
+                                >
+                                    {address.city}
+                                </Text>
+                            )}
+                        </Box>
+                    )}
+
+                    {/* State/Province */}
+                    {(address.subdivision || address.subdivisionFullname) && (
+                        <Text
+                            size="small"
+                            className="clickable-info"
+                            onClick={() => {
+                                const subdivision = address.subdivisionFullname || address.subdivision;
+                                orderController.copyToClipboard(subdivision, 'Billing State/Province');
+                            }}
+                        >
+                            {address.subdivisionFullname || address.subdivision}
+                        </Text>
+                    )}
+
+                    {/* Country */}
+                    {address.country && (
+                        <Text
+                            size="small"
+                            className="clickable-info"
+                            onClick={() => {
+                                const countryName = address.countryFullname || getCountryName(address.country);
+                                orderController.copyToClipboard(countryName, 'Billing Country');
+                            }}
+                        >
+                            {address.countryFullname || getCountryName(address.country)}
                         </Text>
                     )}
                 </Box>
             )}
-
-            {/* Street Name and Number */}
-            {(address.streetAddress?.name || address.streetAddress?.number) && (
-                <Text
-                    size="small"
-                    className="clickable-info"
-                    onClick={() => {
-                        const streetAddress = `${address.streetAddress?.name || ''} ${address.streetAddress?.number || ''}`.trim();
-                        orderController.copyToClipboard(streetAddress, 'Billing Street Address');
-                    }}
-                >
-                    {`${address.streetAddress?.name || ''} ${address.streetAddress?.number || ''}`.trim()}
-                </Text>
-            )}
-
-            {/* Apartment/Unit Number */}
-            {address.streetAddress?.apt && (
-                <Text
-                    size="small"
-                    className="clickable-info"
-                    onClick={() => orderController.copyToClipboard(address.streetAddress!.apt, 'Billing Apartment/Unit')}
-                >
-                    {address.streetAddress.apt}
-                </Text>
-            )}
-
-            {/* Fallback to addressLine1/addressLine2 for older structure */}
-            {!address.streetAddress?.name && address.addressLine1 && (
-                <Text
-                    size="small"
-                    className="clickable-info"
-                    onClick={() => orderController.copyToClipboard(address.addressLine1, 'Billing Street Address')}
-                >
-                    {address.addressLine1}
-                </Text>
-            )}
-
-            {address.addressLine2 && (
-                <Text
-                    size="small"
-                    className="clickable-info"
-                    onClick={() => orderController.copyToClipboard(address.addressLine2, 'Billing Address Line 2')}
-                >
-                    {address.addressLine2}
-                </Text>
-            )}
-
-            {/* City and Postal Code */}
-            {(address.city || address.postalCode) && (
-                <Box direction="horizontal" gap="8px" align="left">
-                    {address.postalCode && (
-                        <Text
-                            size="small"
-                            className="clickable-info"
-                            onClick={() => orderController.copyToClipboard(address.postalCode, 'Billing Postal Code')}
-                        >
-                            {address.postalCode}
-                        </Text>
-                    )}
-
-                    {address.city && (
-                        <Text
-                            size="small"
-                            className="clickable-info"
-                            onClick={() => orderController.copyToClipboard(address.city, 'Billing City')}
-                        >
-                            {address.city}
-                        </Text>
-                    )}
-                </Box>
-            )}
-
-            {/* State/Province */}
-            {(address.subdivision || address.subdivisionFullname) && (
-                <Text
-                    size="small"
-                    className="clickable-info"
-                    onClick={() => {
-                        const subdivision = address.subdivisionFullname || address.subdivision;
-                        orderController.copyToClipboard(subdivision, 'Billing State/Province');
-                    }}
-                >
-                    {address.subdivisionFullname || address.subdivision}
-                </Text>
-            )}
-
-            {/* Country */}
-            {address.country && (
-                <Text
-                    size="small"
-                    className="clickable-info"
-                    onClick={() => {
-                        const countryName = address.countryFullname || getCountryName(address.country);
-                        orderController.copyToClipboard(countryName, 'Billing Country');
-                    }}
-                >
-                    {address.countryFullname || getCountryName(address.country)}
-                </Text>
-            )}
-
         </Box>
-
-
     );
-
 };

@@ -1,7 +1,8 @@
 // components/OrderDetails/ProductImages.tsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Text } from '@wix/design-system';
 import { processWixImageUrl } from '../../utils/image-processor';
+import { orderTransactions } from '@wix/ecom';
 import type { Order } from '../../types/Order';
 
 interface ProductImagesProps {
@@ -9,6 +10,105 @@ interface ProductImagesProps {
 }
 
 export const ProductImages: React.FC<ProductImagesProps> = ({ order }) => {
+    const [paymentMethod, setPaymentMethod] = useState<string>('');
+    const [loadingPayment, setLoadingPayment] = useState<boolean>(false);
+
+    // Function to fetch payment method
+    const fetchPaymentMethod = async (orderId: string) => {
+        try {
+            setLoadingPayment(true);
+            const response = await orderTransactions.listTransactionsForSingleOrder(orderId);
+
+            // Get the first payment's method (most orders have one payment)
+            const payments = response.orderTransactions?.payments || [];
+            if (payments.length > 0) {
+                const firstPayment = payments[0];
+                let method = 'Unknown';
+
+                if (firstPayment.giftcardPaymentDetails) {
+                    method = 'Gift Card';
+                }
+                else if (firstPayment.regularPaymentDetails?.paymentMethod) {
+                    method = firstPayment.regularPaymentDetails.paymentMethod;
+                }
+                setPaymentMethod(method);
+            } else {
+                setPaymentMethod('No payment found');
+            }
+        } catch (error) {
+            console.error('Error fetching payment method:', error);
+            setPaymentMethod('Error loading payment method');
+        } finally {
+            setLoadingPayment(false);
+        }
+    };
+
+    // Fetch payment method when order changes
+    useEffect(() => {
+        if (order._id) {
+            fetchPaymentMethod(order._id);
+        }
+    }, [order._id]);
+
+    // Helper function to get discount display name (add this above your component return)
+    const getDiscountDisplayText = (order: Order): string => {
+        const appliedDiscounts = order.rawOrder?.appliedDiscounts || [];
+
+        if (appliedDiscounts.length === 0) {
+            return 'Discount:';
+        }
+
+        // Try to get coupon names first (this is the correct property according to Wix docs)
+        const couponNames = appliedDiscounts
+            .filter((discount: any) => discount.coupon?.name)
+            .map((discount: any) => discount.coupon.name);
+
+        if (couponNames.length > 0) {
+            // 🔥 FIX: Remove duplicates using Set
+            const uniqueCouponNames = [...new Set(couponNames)];
+            return `Coupon: ${uniqueCouponNames.join(', ')}`;
+        }
+
+        // Fall back to other discount properties
+        const discountNames = appliedDiscounts
+            .map((discount: any) =>
+                discount.coupon?.name ||
+                discount.discountName ||
+                discount.name ||
+                null
+            )
+            .filter((name: string | null) => name && name !== 'Discount'); // Remove null and generic fallbacks
+
+        if (discountNames.length > 0) {
+            // 🔥 FIX: Remove duplicates here too
+            const uniqueDiscountNames = [...new Set(discountNames)];
+            return `Discount: ${uniqueDiscountNames.join(', ')}`;
+        }
+
+        // Final fallback
+        return 'Discount:';
+    };
+
+    // Helper function to format payment method for display
+    const formatPaymentMethod = (method: string) => {
+        switch (method) {
+            case 'CreditCard':
+                return 'Credit Card';
+            case 'PayPal':
+                return 'PayPal';
+            case 'Cash':
+                return 'Cash';
+            case 'Offline':
+                return 'Offline Payment';
+            case 'InPerson':
+                return 'In Person';
+            case 'PointOfSale':
+                return 'Point of Sale';
+            default:
+                return method || 'Unknown';
+        }
+    };
+
     return (
         <Box gap="8px" direction="vertical" style={{ width: '100%' }}>
             <Text size="small" className="section-title">Products:</Text>
@@ -136,31 +236,33 @@ export const ProductImages: React.FC<ProductImagesProps> = ({ order }) => {
                     <Text size="tiny">{order.rawOrder?.priceSummary.tax.formattedAmount}</Text>
                 </Box>
 
-                {/* Discount Information */}
+                {/* Discount Information - CLEANER VERSION */}
                 {order.rawOrder?.priceSummary?.discount?.amount &&
                     order.rawOrder.priceSummary.discount.amount > 0 && (
                         <Box direction="horizontal" align="space-between">
                             <Text size="tiny">
-                                Discount:
-                                {order.rawOrder?.appliedDiscounts && order.rawOrder.appliedDiscounts.length > 0 && (
-                                    <Text size="tiny" secondary>
-                                        {` (${order.rawOrder.appliedDiscounts.map((discount: any) =>
-                                            discount.discountName || discount.name || 'Discount'
-                                        ).join(', ')})`}
-                                    </Text>
-                                )}
+                                {getDiscountDisplayText(order)}
                             </Text>
                             <Text size="tiny">
-                                {order.rawOrder.priceSummary.discount.formattedAmount ||
+                                -{order.rawOrder.priceSummary.discount.formattedAmount ||
                                     `${order.rawOrder.priceSummary.discount.amount} ${order.rawOrder.priceSummary.discount.currency || ''}`}
                             </Text>
                         </Box>
                     )}
 
+
                 {/* Total */}
                 <Box direction="horizontal" align="space-between" style={{ paddingTop: '8px' }}>
                     <Text size="tiny" align="left" weight="bold">Total:</Text>
                     <Text size="tiny" weight="bold">{order.rawOrder?.priceSummary.total.formattedAmount}</Text>
+                </Box>
+
+                {/* Payment Method */}
+                <Box direction="horizontal" align="space-between" style={{ paddingTop: '4px' }}>
+                    <Text size="tiny" align="left">Payment Method:</Text>
+                    <Text size="tiny">
+                        {loadingPayment ? 'Loading...' : formatPaymentMethod(paymentMethod)}
+                    </Text>
                 </Box>
             </Box>
         </Box>
