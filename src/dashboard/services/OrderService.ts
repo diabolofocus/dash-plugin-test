@@ -296,13 +296,15 @@ export class OrderService {
     async fulfillOrder(params: ExtendedFulfillOrderParams): Promise<FulfillmentResponse> {
         const isProd = !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
 
+
         try {
             console.log(`🚀 [${isProd ? 'PROD' : 'DEV'}] Frontend: Starting fulfillOrder:`, {
                 orderId: params.orderId,
                 orderNumber: params.orderNumber,
                 trackingNumber: params.trackingNumber,
                 shippingProvider: params.shippingProvider,
-                sendShippingEmail: params.sendShippingEmail, // 🔥 NEW: Log email preference
+                sendShippingEmail: params.sendShippingEmail,
+                // trackingUrl: uiStore.trackingUrl, 
                 environment: isProd ? 'PRODUCTION' : 'DEVELOPMENT'
             });
 
@@ -316,7 +318,7 @@ export class OrderService {
                 trackingNumber: params.trackingNumber,
                 shippingProvider: params.shippingProvider,
                 orderNumber: params.orderNumber,
-                sendShippingEmail: params.sendShippingEmail // 🔥 NEW: Pass email preference
+                sendShippingEmail: params.sendShippingEmail
             });
 
             const duration = Date.now() - startTime;
@@ -326,7 +328,7 @@ export class OrderService {
                 hasError: !!result.error,
                 hasMessage: !!result.message,
                 hasFulfillmentId: 'fulfillmentId' in result && !!(result as any).fulfillmentId,
-                hasEmailInfo: !!result.emailInfo, // 🔥 NEW: Log email info presence
+                hasEmailInfo: !!result.emailInfo,
                 resultKeys: Object.keys(result)
             });
 
@@ -335,7 +337,7 @@ export class OrderService {
                     orderNumber: params.orderNumber,
                     fulfillmentId: 'fulfillmentId' in result ? result.fulfillmentId : undefined,
                     message: result.message,
-                    emailInfo: result.emailInfo // 🔥 NEW: Log email info
+                    emailInfo: result.emailInfo
                 });
             } else {
                 console.error(`❌ [${isProd ? 'PROD' : 'DEV'}] Frontend: Fulfillment failed:`, {

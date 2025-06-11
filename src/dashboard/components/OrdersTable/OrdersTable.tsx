@@ -20,6 +20,7 @@ import { StatusBadge } from '../shared/StatusBadge';
 import { formatDate } from '../../utils/formatters';
 import type { Order } from '../../types/Order';
 import { dashboard } from '@wix/dashboard';
+import { pages } from '@wix/ecom/dashboard';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { orders } from '@wix/ecom';
@@ -81,19 +82,13 @@ export const OrdersTable: React.FC = observer(() => {
 
     const handleViewOrder = (order: Order) => {
         try {
-            console.log(`View Order clicked for order #${order.number}`);
-
-            // Use known eCommerce page IDs from the Wix documentation
-            dashboard.navigate({
-                pageId: "14537e1a-3a8c-4a32-87b2-9ec50cea0e7d", // Order details page
-                relativeUrl: `/${order._id}`
-            });
-
+            dashboard.navigate(
+                pages.orderDetails({
+                    id: order._id
+                })
+            );
         } catch (error) {
-            console.error('Failed to navigate:', error);
-
-            // Fallback to your existing order details panel
-            orderController.selectOrder(order);
+            console.error('Failed to navigate to order details:', error);
         }
     };
 

@@ -70,6 +70,7 @@ export interface FulfillOrderParams {
     trackingNumber: string;
     shippingProvider: string;
     orderNumber: string;
+    trackingUrl?: string;
     sendShippingEmail?: boolean; // Optional email parameter
 }
 

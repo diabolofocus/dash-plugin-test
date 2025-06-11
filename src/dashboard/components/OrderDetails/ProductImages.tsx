@@ -109,6 +109,8 @@ export const ProductImages: React.FC<ProductImagesProps> = ({ order }) => {
         }
     };
 
+
+
     return (
         <Box gap="8px" direction="vertical" style={{ width: '100%' }}>
             <Text size="small" className="section-title">Products:</Text>
@@ -122,6 +124,7 @@ export const ProductImages: React.FC<ProductImagesProps> = ({ order }) => {
                             {/* Image and Details Row */}
                             <Box direction="horizontal" gap="12px" style={{ width: '100%' }}>
                                 {/* Product Image */}
+
                                 {imageUrl ? (
                                     <img
                                         src={imageUrl}
@@ -187,8 +190,46 @@ export const ProductImages: React.FC<ProductImagesProps> = ({ order }) => {
                                         </Text>
                                     </Box>
 
-                                    {/* Product Options */}
-                                    {item.catalogReference?.options?.options && Object.keys(item.catalogReference.options.options).length > 0 && (
+                                    {/* Product Options - CHECK BOTH productOptions AND descriptionLines */}
+                                    {item.productOptions && (
+                                        <Box direction="vertical" gap="2px" align="left">
+                                            {/* Product Variant Options */}
+                                            {item.productOptions.options && Object.keys(item.productOptions.options).length > 0 && (
+                                                <>
+                                                    {Object.entries(item.productOptions.options).map(([key, value]: [string, any]) => (
+                                                        <Text key={key} size="tiny" secondary>
+                                                            {key}: {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                                                        </Text>
+                                                    ))}
+                                                </>
+                                            )}
+
+                                            {/* Custom Text Fields */}
+                                            {item.productOptions.customTextFields && Object.keys(item.productOptions.customTextFields).length > 0 && (
+                                                <>
+                                                    {Object.entries(item.productOptions.customTextFields).map(([key, value]: [string, any]) => (
+                                                        <Text key={key} size="tiny" secondary style={{ fontStyle: 'italic' }}>
+                                                            {key}: {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                                                        </Text>
+                                                    ))}
+                                                </>
+                                            )}
+                                        </Box>
+                                    )}
+
+                                    {/* Custom SPI Product Options from descriptionLines */}
+                                    {!item.productOptions && item.descriptionLines && item.descriptionLines.length > 0 && (
+                                        <Box direction="vertical" gap="2px" align="left">
+                                            {item.descriptionLines.map((line: any, idx: number) => (
+                                                <Text key={idx} size="tiny" secondary>
+                                                    {line.name?.original}: {line.plainText?.original}
+                                                </Text>
+                                            ))}
+                                        </Box>
+                                    )}
+
+                                    {/* Final Fallback: Legacy catalogReference.options */}
+                                    {!item.productOptions && !item.descriptionLines && item.catalogReference?.options?.options && Object.keys(item.catalogReference.options.options).length > 0 && (
                                         <Box direction="vertical" gap="2px" align="left">
                                             {Object.entries(item.catalogReference.options.options).map(([key, value]: [string, any]) => (
                                                 <Text key={key} size="tiny" secondary>

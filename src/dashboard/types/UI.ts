@@ -6,6 +6,7 @@ export interface UIState {
     submitting: boolean;
     trackingNumber: string;
     selectedCarrier: string;
+    trackingUrl: string;
 }
 
 export interface ShippingCarrier {

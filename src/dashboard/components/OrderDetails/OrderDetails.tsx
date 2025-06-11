@@ -16,7 +16,9 @@ import { BillingInfo } from './BillingInfo'; // Use existing BillingInfo compone
 import { BillingAddress } from './BillingAddress'; // New BillingAddress component
 import { ExtendedFields } from './ExtendedFields';
 import { CustomAndExtendedFields } from './CustomAndExtendedFields';
+import { TrackingNumberDisplay } from './TrackingNumberDisplay';
 import { dashboard } from '@wix/dashboard';
+import { pages } from '@wix/ecom/dashboard';
 import type { Order } from '../../types/Order';
 
 export const OrderDetails: React.FC = observer(() => {
@@ -64,11 +66,12 @@ export const OrderDetails: React.FC = observer(() => {
 
             console.log(`Order link clicked for order #${order.number}`);
 
-            // Same approach as OrdersTable for consistency
-            dashboard.navigate({
-                pageId: "stores.orders",
-                relativeUrl: `?order=${order._id}`
-            });
+            // Use the proper ecom dashboard navigation
+            dashboard.navigate(
+                pages.orderDetails({
+                    id: order._id
+                })
+            );
 
         } catch (error) {
             console.error('Failed to navigate to order details:', error);
@@ -171,6 +174,9 @@ export const OrderDetails: React.FC = observer(() => {
                                 <Box gap="8px" direction="vertical">
                                     <Text size="medium" weight="bold">Fulfillment</Text>
                                     <Text size="small">Method: {selectedOrder.shippingInfo.title}</Text>
+
+                                    {/* ADD TRACKING NUMBER DISPLAY HERE */}
+                                    <TrackingNumberDisplay orderId={selectedOrder._id} />
                                 </Box>
                             </>
                         )}

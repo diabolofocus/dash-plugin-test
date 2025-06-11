@@ -1,152 +1,208 @@
 // backend/utils/order-mapper.ts
 
 /**
- * Map raw Wix order data to standardized format
+ * Extract product options from catalog reference
+ * Handles both Wix Stores products and custom catalog SPI products
+ */
+function extractProductOptions(lineItem: any) {
+    console.log('=== EXTRACT OPTIONS DEBUG ===');
+    console.log('Line item:', lineItem);
+    console.log('Catalog ref:', lineItem.catalogReference);
+    console.log('Catalog ref options:', lineItem.catalogReference?.options);
+
+    const catalogRef = lineItem.catalogReference;
+    if (!catalogRef?.options) {
+        console.log('No options found in catalogRef.options');
+        return null;
+    }
+
+    const result = {
+        variantId: catalogRef.options.variantId || null,
+        options: catalogRef.options.options || {},
+        customTextFields: catalogRef.options.customTextFields || {}
+    };
+
+    console.log('Extracted options result:', result);
+    console.log('=== END EXTRACT OPTIONS DEBUG ===');
+
+    return result;
+}
+
+/**
+ * Extract shipping address from order
+ */
+function extractShippingAddress(rawOrder: any) {
+    const shippingInfo = rawOrder.shippingInfo;
+    if (!shippingInfo?.logistics?.shippingDestination?.contactDetails) {
+        return null;
+    }
+
+    const contactDetails = shippingInfo.logistics.shippingDestination.contactDetails;
+    const address = shippingInfo.logistics.shippingDestination.address;
+
+    return {
+        firstName: contactDetails.firstName || '',
+        lastName: contactDetails.lastName || '',
+        company: contactDetails.company || '',
+        phone: contactDetails.phone || '',
+        address: {
+            addressLine1: address?.addressLine1 || '',
+            addressLine2: address?.addressLine2 || '',
+            city: address?.city || '',
+            subdivision: address?.subdivision || '',
+            country: address?.country || '',
+            postalCode: address?.postalCode || ''
+        }
+    };
+}
+
+/**
+ * Extract billing address from order
+ */
+function extractBillingAddress(rawOrder: any) {
+    const billingInfo = rawOrder.billingInfo;
+    if (!billingInfo?.contactDetails) {
+        return null;
+    }
+
+    return {
+        firstName: billingInfo.contactDetails.firstName || '',
+        lastName: billingInfo.contactDetails.lastName || '',
+        company: billingInfo.contactDetails.company || '',
+        phone: billingInfo.contactDetails.phone || '',
+        email: billingInfo.contactDetails.email || '',
+        address: {
+            addressLine1: billingInfo.address?.addressLine1 || '',
+            addressLine2: billingInfo.address?.addressLine2 || '',
+            city: billingInfo.address?.city || '',
+            subdivision: billingInfo.address?.subdivision || '',
+            country: billingInfo.address?.country || '',
+            postalCode: billingInfo.address?.postalCode || ''
+        }
+    };
+}
+
+/**
+ * Map fulfillment status to readable format
+ */
+function mapFulfillmentStatus(fulfillmentStatus: string): string {
+    const statusMap: Record<string, string> = {
+        'NOT_FULFILLED': 'NOT_FULFILLED',
+        'PARTIALLY_FULFILLED': 'PARTIALLY_FULFILLED',
+        'FULFILLED': 'FULFILLED',
+        'CANCELLED': 'CANCELLED'
+    };
+
+    return statusMap[fulfillmentStatus] || fulfillmentStatus;
+}
+
+/**
+ * Map order status to readable format
+ */
+function mapOrderStatus(status: string): string {
+    const statusMap: Record<string, string> = {
+        'INITIALIZED': 'INITIALIZED',
+        'APPROVED': 'APPROVED',
+        'CANCELED': 'CANCELED',
+        'REFUNDED': 'REFUNDED',
+        'PARTIALLY_REFUNDED': 'PARTIALLY_REFUNDED'
+    };
+
+    return statusMap[status] || status;
+}
+
+/**
+ * Map raw Wix order to standardized Order interface
+ * Handles both regular Wix Stores products and custom catalog SPI products
  */
 export const mapWixOrder = (rawOrder: any) => {
-    // Extract customer info
-    const recipientContact = rawOrder.recipientInfo?.contactDetails;
-    const billingContact = rawOrder.billingInfo?.contactDetails;
-    const buyerInfo = rawOrder.buyerInfo;
-
-    const customer = {
-        firstName: recipientContact?.firstName || billingContact?.firstName || 'Unknown',
-        lastName: recipientContact?.lastName || billingContact?.lastName || 'Customer',
-        email: buyerInfo?.email || recipientContact?.email || billingContact?.email || 'no-email@example.com',
-        phone: recipientContact?.phone || billingContact?.phone || '',
-        company: recipientContact?.company || billingContact?.company || ''
-    };
-
-    // Map shipping address
-    const shippingAddress = mapShippingAddress(rawOrder);
-
-    // Map line items
-    const items = mapLineItems(rawOrder.lineItems || []);
-
-    // Map order status
-    const status = mapOrderStatus(rawOrder);
-
-    // Map payment status
-    const paymentStatus = mapPaymentStatus(rawOrder);
+    if (!rawOrder) {
+        throw new Error('Raw order data is required');
+    }
 
     return {
-        _id: rawOrder._id,
-        number: rawOrder.number,
-        _createdDate: rawOrder._createdDate,
-        customer,
-        items,
-        totalWeight: calculateTotalWeight(rawOrder.lineItems || []),
-        total: rawOrder.priceSummary?.total?.formattedAmount || '$0.00',
-        status,
-        paymentStatus,
-        shippingInfo: {
-            carrierId: rawOrder.shippingInfo?.carrierId || '',
-            title: rawOrder.shippingInfo?.title || 'No shipping method',
-            cost: rawOrder.shippingInfo?.cost?.formattedAmount || '$0.00'
+        _id: rawOrder._id || rawOrder.id,
+        number: rawOrder.number?.toString() || 'N/A',
+        status: mapOrderStatus(rawOrder.status || 'UNKNOWN'),
+        fulfillmentStatus: mapFulfillmentStatus(rawOrder.fulfillmentStatus || 'NOT_FULFILLED'),
+
+        // Order dates
+        _createdDate: rawOrder._createdDate || rawOrder.createdDate,
+        _updatedDate: rawOrder._updatedDate || rawOrder.updatedDate,
+
+        // Customer information
+        buyerInfo: {
+            contactId: rawOrder.buyerInfo?.contactId || '',
+            email: rawOrder.buyerInfo?.email || rawOrder.billingInfo?.contactDetails?.email || '',
+            firstName: rawOrder.buyerInfo?.firstName || rawOrder.billingInfo?.contactDetails?.firstName || '',
+            lastName: rawOrder.buyerInfo?.lastName || rawOrder.billingInfo?.contactDetails?.lastName || '',
+            phone: rawOrder.buyerInfo?.phone || rawOrder.billingInfo?.contactDetails?.phone || ''
         },
-        weightUnit: rawOrder.weightUnit || 'KG',
-        shippingAddress,
-        billingInfo: rawOrder.billingInfo,
-        recipientInfo: rawOrder.recipientInfo,
-        rawOrder
+
+        // Line items with product options support
+        lineItems: rawOrder.lineItems?.map((item: any) => ({
+            _id: item._id || item.id,
+            productName: item.productName?.original || item.name || 'Unknown Product',
+            quantity: item.quantity || 1,
+            price: item.price?.amount || item.price || '0',
+
+            // Product options (supports both Wix Stores and custom catalog SPI)
+            productOptions: extractProductOptions(item),
+
+            // Catalog reference
+            catalogReference: {
+                catalogItemId: item.catalogReference?.catalogItemId || '',
+                appId: item.catalogReference?.appId || '',
+                options: item.catalogReference?.options || {}
+            },
+
+            // Additional item details
+            image: item.image || '',
+            sku: item.sku || '',
+            weight: item.weight || 0,
+            itemType: item.itemType?.preset || 'PHYSICAL',
+
+            // Tax and pricing details
+            taxInfo: {
+                taxAmount: item.taxInfo?.taxAmount?.amount || '0',
+                taxRate: item.taxInfo?.taxRate || 0
+            }
+        })) || [],
+
+        // Price summary
+        priceSummary: {
+            subtotal: rawOrder.priceSummary?.subtotal?.amount || '0',
+            shipping: rawOrder.priceSummary?.shipping?.amount || '0',
+            tax: rawOrder.priceSummary?.tax?.amount || '0',
+            discount: rawOrder.priceSummary?.discount?.amount || '0',
+            total: rawOrder.priceSummary?.total?.amount || '0'
+        },
+
+        // Addresses
+        shippingAddress: extractShippingAddress(rawOrder),
+        billingAddress: extractBillingAddress(rawOrder),
+
+        // Channel and payment info
+        channelInfo: {
+            type: rawOrder.channelInfo?.type || 'WEB',
+            externalOrderId: rawOrder.channelInfo?.externalOrderId || ''
+        },
+
+        paymentStatus: rawOrder.paymentStatus || 'PENDING',
+        currency: rawOrder.currency || 'USD',
+
+        // Additional metadata
+        customFields: rawOrder.customFields || {},
+        internalNotes: rawOrder.internalNotes || '',
+        customerNotes: rawOrder.activities?.find((activity: any) =>
+            activity.type === 'ORDER_PLACED'
+        )?.orderPlaced?.note || '',
+
+        // Fulfillment tracking (if available)
+        trackingInfo: rawOrder.fulfillments?.[0]?.trackingInfo ? {
+            trackingNumber: rawOrder.fulfillments[0].trackingInfo.trackingNumber || '',
+            shippingProvider: rawOrder.fulfillments[0].trackingInfo.shippingProvider || '',
+            trackingLink: rawOrder.fulfillments[0].trackingInfo.trackingLink || ''
+        } : null
     };
-};
-
-/**
- * Map shipping address from different possible locations
- */
-const mapShippingAddress = (rawOrder: any) => {
-    const address = rawOrder.recipientInfo?.address || rawOrder.billingInfo?.address;
-
-    if (!address) return null;
-
-    return {
-        streetAddress: address.streetAddress ? {
-            name: address.streetAddress.name || '',
-            number: address.streetAddress.number || '',
-            apt: address.streetAddress.apt || ''
-        } : null,
-        city: address.city || '',
-        postalCode: address.postalCode || '',
-        country: address.country || '',
-        countryFullname: address.countryFullname || address.country || '',
-        subdivision: address.subdivision || '',
-        subdivisionFullname: address.subdivisionFullname || '',
-        addressLine1: address.addressLine1 || (address.streetAddress ?
-            `${address.streetAddress.name || ''} ${address.streetAddress.number || ''}`.trim() : ''),
-        addressLine2: address.addressLine2 || (address.streetAddress?.apt || '')
-    };
-};
-
-/**
- * Map line items with image processing
- */
-const mapLineItems = (lineItems: any[]) => {
-    return lineItems.map(item => ({
-        name: item.productName?.original || 'Unknown Product',
-        quantity: item.quantity || 1,
-        price: item.price?.formattedAmount || '$0.00',
-        image: processItemImage(item.image),
-        weight: item.physicalProperties?.weight || 0,
-        options: item.catalogReference?.options || {}
-    }));
-};
-
-/**
- * Process Wix image URL
- */
-const processItemImage = (imageString: string): string => {
-    if (!imageString || typeof imageString !== 'string') return '';
-
-    if (imageString.startsWith('wix:image://v1/')) {
-        const imageId = imageString
-            .replace('wix:image://v1/', '')
-            .split('#')[0]
-            .split('~')[0];
-        return `https://static.wixstatic.com/media/${imageId}`;
-    }
-
-    if (imageString.startsWith('wix:image://')) {
-        const imageId = imageString.replace(/^wix:image:\/\/[^\/]*\//, '').split('#')[0].split('~')[0];
-        return `https://static.wixstatic.com/media/${imageId}`;
-    }
-
-    if (imageString.startsWith('http')) return imageString;
-
-    return `https://static.wixstatic.com/media/${imageString}`;
-};
-
-/**
- * Map order status with priority for canceled orders
- */
-const mapOrderStatus = (rawOrder: any): string => {
-    if (rawOrder.status === 'CANCELED' || rawOrder.status === 'CANCELLED') {
-        return 'CANCELED';
-    }
-
-    return rawOrder.fulfillmentStatus || 'NOT_FULFILLED';
-};
-
-/**
- * Map payment status
- */
-const mapPaymentStatus = (rawOrder: any): string => {
-    const status = rawOrder.paymentStatus;
-
-    if (status === 'FULLY_REFUNDED') return 'FULLY_REFUNDED';
-    if (status === 'PARTIALLY_REFUNDED') return 'PARTIALLY_REFUNDED';
-    if (status === 'PAID') return 'PAID';
-
-    return 'UNKNOWN';
-};
-
-/**
- * Calculate total weight from line items
- */
-const calculateTotalWeight = (lineItems: any[]): number => {
-    return lineItems.reduce((total, item) => {
-        const itemWeight = item.physicalProperties?.weight || 0;
-        const quantity = item.quantity || 1;
-        return total + (itemWeight * quantity);
-    }, 0);
 };

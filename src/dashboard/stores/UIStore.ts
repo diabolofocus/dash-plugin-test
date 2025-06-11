@@ -1,46 +1,71 @@
-// stores/UIStore.ts
-import { makeAutoObservable } from 'mobx';
-import type { ConnectionStatus } from '../types/Order';
+import { makeObservable, observable, action } from 'mobx';
 
 export class UIStore {
-    loading = false;
-    refreshing = false;
-    loadingMore = false;
-    submitting = false;
-    trackingNumber = '';
-    selectedCarrier = 'dhl';
-    connectionStatus: ConnectionStatus | null = null;
+    loading: boolean = false;
+    refreshing: boolean = false;
+    loadingMore: boolean = false;
+    submitting: boolean = false;
+    trackingNumber: string = '';
+    selectedCarrier: string = '';
+    trackingUrl: string = ''; // ADD THIS LINE
 
     constructor() {
-        makeAutoObservable(this);
+        makeObservable(this, {
+            // Observable properties
+            loading: observable,
+            refreshing: observable,
+            loadingMore: observable,
+            submitting: observable,
+            trackingNumber: observable,
+            selectedCarrier: observable,
+            trackingUrl: observable, // ADD THIS LINE
+
+            // Actions
+            setLoading: action,
+            setRefreshing: action,
+            setLoadingMore: action,
+            setSubmitting: action,
+            setTrackingNumber: action,
+            setSelectedCarrier: action,
+            setTrackingUrl: action, // ADD THIS LINE
+            resetForm: action
+        });
     }
 
-    setLoading = (loading: boolean) => {
+    // Actions
+    setLoading(loading: boolean) {
         this.loading = loading;
-    };
+    }
 
-    setRefreshing = (refreshing: boolean) => {
+    setRefreshing(refreshing: boolean) {
         this.refreshing = refreshing;
-    };
+    }
 
-    setSubmitting = (submitting: boolean) => {
+    setLoadingMore(loadingMore: boolean) {
+        this.loadingMore = loadingMore;
+    }
+
+    setSubmitting(submitting: boolean) {
         this.submitting = submitting;
-    };
+    }
 
-    setTrackingNumber = (trackingNumber: string) => {
+    setTrackingNumber(trackingNumber: string) {
         this.trackingNumber = trackingNumber;
-    };
+    }
 
-    setSelectedCarrier = (carrier: string) => {
+    setSelectedCarrier(carrier: string) {
         this.selectedCarrier = carrier;
-    };
+    }
 
-    setConnectionStatus = (status: ConnectionStatus | null) => {
-        this.connectionStatus = status;
-    };
+    // ADD THIS METHOD
+    setTrackingUrl(url: string) {
+        this.trackingUrl = url;
+    }
 
-    resetForm = () => {
+    resetForm() {
         this.trackingNumber = '';
-        this.selectedCarrier = 'dhl';
-    };
+        this.selectedCarrier = '';
+        this.trackingUrl = ''; // ADD THIS LINE
+        this.submitting = false;
+    }
 }
