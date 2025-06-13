@@ -1,7 +1,7 @@
 // components/OrdersTable/OrdersTableWithTabs.tsx
 import React, { useState } from 'react';
 import { observer } from 'mobx-react-lite';
-import { Box, Tabs, Card, Text, Table, TableToolbar, Heading, Tag } from '@wix/design-system';
+import { Box, Tabs, Text, Table, TableToolbar, Heading, Tag } from '@wix/design-system';
 import * as Icons from '@wix/wix-ui-icons-common';
 import { useStores } from '../../hooks/useStores';
 import { OrdersTable } from './OrdersTable';
@@ -32,8 +32,8 @@ export const OrdersTableWithTabs: React.FC = observer(() => {
     const [activeTabId, setActiveTabId] = useState<string | number>(1);
 
     const tabItems = [
-        { id: 1, title: 'Orders' },
-        { id: 2, title: 'Preparation' }
+        { id: 1, title: 'Order List' },
+        { id: 2, title: 'Packing List' }
     ];
 
     // Function to get product options as a string for grouping
@@ -275,15 +275,20 @@ export const OrdersTableWithTabs: React.FC = observer(() => {
     );
 
     const renderPreparationTab = () => (
-        <Card>
-            <Card.Header
-                title={
-                    <Box direction="horizontal" align="space-between" width="100%">
-                        <Heading size="medium">Products to Prepare</Heading>
-                    </Box>
-                }
-            />
-            <Card.Content>
+        <Box direction="vertical" gap="0" paddingBottom="10px" style={{ backgroundColor: '#ffffff', borderRadius: '8px' }}>
+            {/* TableToolbar */}
+            <TableToolbar>
+                <TableToolbar.ItemGroup position="start">
+                    <TableToolbar.Item>
+                        <TableToolbar.Title>
+                            Products to Pack ({preparationItems.reduce((total, item) => total + item.totalQuantity, 0)})
+                        </TableToolbar.Title>
+                    </TableToolbar.Item>
+                </TableToolbar.ItemGroup>
+            </TableToolbar>
+
+            {/* Table Content */}
+            <div style={{ width: '100%', overflowX: 'auto' }}>
                 {preparationItems.length === 0 ? (
                     <Box
                         align="center"
@@ -291,6 +296,11 @@ export const OrdersTableWithTabs: React.FC = observer(() => {
                         paddingBottom="40px"
                         gap="16px"
                         direction="vertical"
+                        style={{
+                            backgroundColor: '#ffffff',
+                            border: '1px solid #e5e7eb',
+                            borderBottom: 'none'
+                        }}
                     >
                         <Icons.Check size="48px" style={{ color: '#4caf50' }} />
                         <Text size="medium" weight="bold">All orders fulfilled!</Text>
@@ -299,17 +309,27 @@ export const OrdersTableWithTabs: React.FC = observer(() => {
                         </Text>
                     </Box>
                 ) : (
-                    <div style={{ width: '100%' }}>
-                        <Table
-                            data={preparationItems}
-                            columns={preparationColumns}
-                            rowVerticalPadding="medium"
-                            horizontalScroll
-                        />
-                    </div>
+                    <Table
+                        data={preparationItems}
+                        columns={preparationColumns}
+                        rowVerticalPadding="medium"
+                        horizontalScroll
+                    >
+                        <Table.Titlebar />
+                        <div
+                            className="preparation-table-container"
+                            style={{
+                                maxHeight: 'calc(100vh - 194px)',
+                                overflowY: 'auto',
+                                overflowX: 'hidden'
+                            }}
+                        >
+                            <Table.Content titleBarVisible={false} />
+                        </div>
+                    </Table>
                 )}
-            </Card.Content>
-        </Card>
+            </div>
+        </Box>
     );
 
     return (

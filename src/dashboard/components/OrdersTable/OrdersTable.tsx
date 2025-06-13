@@ -137,36 +137,12 @@ export const OrdersTable: React.FC = observer(() => {
                 // Import pages from ecom/dashboard
                 const { pages } = await import('@wix/ecom/dashboard');
 
-                // Navigate directly to the New Order page
-                await dashboard.navigate(pages.newOrder());
-
-                // Show persistent toast with "Go back to app" button
-                dashboard.showToast({
-                    message: 'New Order page opened',
-                    type: 'success',
-                    timeout: 'none', // Keep the toast persistent
-                    action: {
-                        uiType: 'button',
-                        text: 'Go back to app',
-                        removeToastOnClick: true,
-                        onClick: () => {
-                            console.log('🔗 Attempting to navigate back to app...');
-
-                            // Get site ID
-                            const siteId = getSiteIdFromContext();
-                            if (siteId) {
-                                const appUrl = `https://manage.wix.com/dashboard/${siteId}/fab32ea8-b5a8-48c6-a2c5-0afcc6053ff2`;
-                                console.log('App URL:', appUrl);
-
-                                // Try navigation
-                                window.location.href = appUrl;
-                            } else {
-                                console.warn('Site ID not found, using fallback navigation');
-                                window.history.back();
-                            }
-                        }
+                dashboard.navigate(
+                    pages.newOrder(),
+                    {
+                        displayMode: "overlay"
                     }
-                });
+                );
 
             } catch (error) {
                 console.error('Error navigating to new order page:', error);
@@ -1065,11 +1041,11 @@ export const OrdersTable: React.FC = observer(() => {
                             <Table.Content titleBarVisible={false} />
                         )}
                         {/* Add loading indicator for "load more" */}
-                        {/* {orderStore.isLoadingMore && (
+                        {orderStore.isLoadingMore && (
                             <Box align="center" padding="24px 0px">
-                                <Loader size="small" />
+                                <Loader size="tiny" />
                             </Box>
-                        )} */}
+                        )}
                     </div>
                 </Table>
             </div>
