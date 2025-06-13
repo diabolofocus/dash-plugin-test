@@ -201,7 +201,7 @@ export const OrdersTableWithTabs: React.FC = observer(() => {
 
                     {/* Product Details */}
                     <Box direction="vertical" gap="4px" style={{ flex: 1 }}>
-                        <Text size="small" weight="bold">{item.productName}</Text>
+                        <Text size="small" weight="normal">{item.productName}</Text>
                         {Object.keys(item.optionsDisplay).length > 0 && (
                             <Box direction="vertical" gap="2px">
                                 {Object.entries(item.optionsDisplay).map(([key, value]: [string, any]) => (
@@ -236,7 +236,7 @@ export const OrdersTableWithTabs: React.FC = observer(() => {
                         .sort((a, b) => b.orderTimestamp - a.orderTimestamp)
                         .map((order, index) => (
                             <Box key={index} direction="horizontal" gap="6px" align="center" style={{ justifyContent: 'flex-start' }}>
-                                <Tag id={`order-tag-${order.orderId}-${order.orderNumber}`} size="small" theme="standard">
+                                <Tag id={`order-tag-${order.orderId}-${order.orderNumber}`} size="tiny" theme="standard">
                                     #{order.orderNumber}
                                 </Tag>
                                 <Box style={{ display: 'flex', alignItems: 'center' }}>

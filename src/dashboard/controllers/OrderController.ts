@@ -1,5 +1,6 @@
-// controllers/OrderController.ts - FIXED with getSiteId implementation
+// controllers/OrderController.ts - COMPLETE with Advanced Search
 import { AnalyticsService } from '../services/AnalyticsService';
+import { AdvancedSearchService, type SearchFilters, type SearchResult } from '../services/AdvancedSearchService';
 import { dashboard } from '@wix/dashboard';
 import type { OrderStore } from '../stores/OrderStore';
 import { getCurrentSiteId } from '../utils/get-siteId';
@@ -8,17 +9,405 @@ import type { OrderService } from '../services/OrderService';
 import type { Order, FulfillOrderParams } from '../types/Order';
 import { DEMO_ORDERS } from '../utils/constants';
 import { getSiteIdFromContext, debugSiteIdSources } from '../utils/get-siteId';
-
-
+import { mapWixOrder } from '../../backend/utils/order-mapper';
 
 export class OrderController {
+    private advancedSearchService: AdvancedSearchService;
+    private searchTimeout: number | null = null;
+    private currentSearchQuery: string = '';
+    private lastSearchResult: SearchResult | null = null;
+
     constructor(
         private orderStore: OrderStore,
         private uiStore: UIStore,
         private orderService: OrderService
-    ) { }
+    ) {
+        this.advancedSearchService = new AdvancedSearchService();
+    }
 
-    // Replace your loadOrders method in OrderController.ts
+    // === SEARCH METHODS ===
+
+    /**
+     * Enhanced search method - replaces the old updateSearchQuery
+     */
+    async performAdvancedSearch(query: string, statusFilter?: string[]): Promise<void> {
+        const trimmedQuery = query.trim();
+        this.currentSearchQuery = trimmedQuery;
+
+        // Clear previous search timeout
+        if (this.searchTimeout) {
+            clearTimeout(this.searchTimeout);
+        }
+
+        // If query is empty, reset to show all orders
+        if (!trimmedQuery) {
+            this.orderStore.setSearchQuery('');
+            this.orderStore.setSearchResults(null);
+            this.lastSearchResult = null;
+            return;
+        }
+
+        // Set immediate feedback
+        this.orderStore.setSearchQuery(trimmedQuery);
+        this.uiStore.setSearching(true);
+
+        try {
+            const filters: SearchFilters = {
+                query: trimmedQuery,
+                status: statusFilter,
+                limit: 100
+            };
+
+            console.log(`🔍 Starting advanced search for: "${trimmedQuery}"`);
+
+            const searchResult = await this.advancedSearchService.performAdvancedSearch(
+                trimmedQuery,
+                this.orderStore.orders, // Pass currently loaded orders
+                filters
+            );
+
+            // Only update if this is still the current search
+            if (this.currentSearchQuery === trimmedQuery) {
+                this.lastSearchResult = searchResult;
+                this.orderStore.setSearchResults(searchResult);
+            }
+
+        } catch (error) {
+            console.error('❌ Advanced search failed:', error);
+
+            // Fallback to basic search on loaded orders
+            this.performBasicSearch(trimmedQuery);
+
+            this.showToast('Search completed with basic results', 'warning');
+        } finally {
+            this.uiStore.setSearching(false);
+        }
+    }
+
+    /**
+     * Main search method that replaces updateSearchQuery - debounced search for real-time search as user types
+     */
+    updateSearchQuery(query: string, statusFilter?: string[]): void {
+        // Cancel previous timeout
+        if (this.searchTimeout) {
+            clearTimeout(this.searchTimeout);
+        }
+
+        // Set immediate UI feedback
+        this.orderStore.setSearchQuery(query);
+
+        // If query is empty, reset immediately
+        if (!query.trim()) {
+            this.orderStore.setSearchResults(null);
+            this.lastSearchResult = null;
+            return;
+        }
+
+        // Debounce the actual search
+        this.searchTimeout = setTimeout(() => {
+            this.performAdvancedSearch(query, statusFilter);
+        }, 300) as any; // 300ms delay for debouncing
+    }
+
+    /**
+     * Fallback basic search through loaded orders only
+     */
+    private performBasicSearch(query: string): void {
+        if (!query.trim()) {
+            this.orderStore.setSearchResults(null);
+            return;
+        }
+
+        const searchTerm = query.toLowerCase();
+        const filteredOrders = this.orderStore.orders.filter(order => {
+            const recipientContact = order.rawOrder?.recipientInfo?.contactDetails;
+            const billingContact = order.rawOrder?.billingInfo?.contactDetails;
+
+            const firstName = recipientContact?.firstName || billingContact?.firstName || order.customer.firstName || '';
+            const lastName = recipientContact?.lastName || billingContact?.lastName || order.customer.lastName || '';
+            const email = recipientContact?.email || billingContact?.email || order.customer.email || '';
+            const phone = recipientContact?.phone || billingContact?.phone || order.customer.phone || '';
+            const company = recipientContact?.company || billingContact?.company || order.customer.company || '';
+
+            return (
+                order.number.toLowerCase().includes(searchTerm) ||
+                firstName.toLowerCase().includes(searchTerm) ||
+                lastName.toLowerCase().includes(searchTerm) ||
+                email.toLowerCase().includes(searchTerm) ||
+                phone.toLowerCase().includes(searchTerm) ||
+                company.toLowerCase().includes(searchTerm)
+            );
+        });
+
+        // Create a basic search result
+        const basicResult: SearchResult = {
+            orders: filteredOrders,
+            fromCache: filteredOrders,
+            fromApi: [],
+            hasMore: false,
+            totalFound: filteredOrders.length,
+            searchTime: 0
+        };
+
+        this.orderStore.setSearchResults(basicResult);
+        this.lastSearchResult = basicResult;
+    }
+
+    /**
+     * Load more search results if available
+     */
+    async loadMoreSearchResults(): Promise<void> {
+        if (!this.lastSearchResult?.hasMore || !this.lastSearchResult.nextCursor) {
+            return;
+        }
+
+        if (!this.currentSearchQuery.trim()) {
+            return;
+        }
+
+        try {
+            this.uiStore.setLoadingMore(true);
+
+            // Build filters for the next page
+            const filters: SearchFilters = {
+                query: this.currentSearchQuery,
+                limit: 100
+            };
+
+            // Perform API search with cursor for next page
+            const { orders } = await import('@wix/ecom');
+            const apiFilters = this.buildApiFiltersForQuery(this.currentSearchQuery, filters);
+
+            const searchParams = {
+                filter: apiFilters,
+                cursorPaging: {
+                    limit: 100,
+                    cursor: this.lastSearchResult.nextCursor
+                },
+                sort: [{ fieldName: '_createdDate' as const, order: 'DESC' as const }]
+            };
+
+            const result = await orders.searchOrders(searchParams);
+
+            if (result.orders && result.orders.length > 0) {
+                // Map and merge new results with proper type assertion
+                const newOrders: Order[] = result.orders.map((rawOrder: any) => mapWixOrder(rawOrder));
+
+                // Update search results
+                const updatedResult: SearchResult = {
+                    ...this.lastSearchResult,
+                    orders: [...this.lastSearchResult.orders, ...newOrders],
+                    fromApi: [...this.lastSearchResult.fromApi, ...newOrders],
+                    hasMore: result.metadata?.hasNext || false,
+                    nextCursor: result.metadata?.cursors?.next,
+                    totalFound: this.lastSearchResult.totalFound + newOrders.length
+                };
+
+                this.lastSearchResult = updatedResult;
+                this.orderStore.setSearchResults(updatedResult);
+            }
+
+        } catch (error) {
+            console.error('❌ Failed to load more search results:', error);
+            this.showToast('Failed to load more results', 'error');
+        } finally {
+            this.uiStore.setLoadingMore(false);
+        }
+    }
+
+    // ADD these methods to OrderController class:
+
+    /**
+     * Perform status-based filtering on full dataset
+     */
+    private isFilterMode: boolean = false;
+    private currentStatusFilter: string | null = null;
+    async performStatusFilter(statusFilter: string): Promise<void> {
+        this.isFilterMode = true;
+        this.currentStatusFilter = statusFilter;
+        try {
+
+
+            const apiFilters = this.buildStatusApiFilters(statusFilter);
+
+            console.log(`🔍 Filtering orders by status: ${statusFilter}`);
+
+            // Import the orders API
+            const { orders } = await import('@wix/ecom');
+
+            const searchParams = {
+                filter: apiFilters,
+                cursorPaging: {
+                    limit: 100
+                },
+                sort: [{ fieldName: '_createdDate' as const, order: 'DESC' as const }]
+            };
+
+            const result = await orders.searchOrders(searchParams);
+
+            if (result.orders) {
+                const filteredOrders = result.orders.map(mapWixOrder);
+
+                // Update the main orders array with filtered results
+                this.orderStore.setOrders(filteredOrders);
+                this.orderStore.setHasMoreOrders(result.metadata?.hasNext || false);
+                this.orderStore.setNextCursor(result.metadata?.cursors?.next || '');
+
+                console.log(`✅ Status filter applied: ${filteredOrders.length} orders found`);
+            }
+
+        } catch (error) {
+            console.error('❌ Status filtering failed:', error);
+            this.showToast('Failed to apply status filter', 'error');
+        } finally {
+
+        }
+    }
+
+    /**
+     * Clear status filter and reload original orders
+     */
+    clearStatusFilter(): void {
+        this.isFilterMode = false;
+        this.currentStatusFilter = null;
+        this.loadOrders();
+    }
+
+    /**
+     * Build API filters for status filtering
+     */
+    private buildStatusApiFilters(statusFilter: string): Record<string, any> {
+        const baseFilter = {
+            status: { $ne: "INITIALIZED" }
+        };
+
+        switch (statusFilter) {
+            case 'unfulfilled':
+                return {
+                    ...baseFilter,
+                    fulfillmentStatus: { $in: ["NOT_FULFILLED", "PARTIALLY_FULFILLED"] },
+                    archived: { $ne: true }
+                };
+
+            case 'fulfilled':
+                return {
+                    ...baseFilter,
+                    fulfillmentStatus: { $eq: "FULFILLED" },
+                    archived: { $ne: true }
+                };
+
+            case 'unpaid':
+                return {
+                    ...baseFilter,
+                    paymentStatus: { $in: ["UNPAID", "PARTIALLY_PAID", "NOT_PAID", "PENDING"] }
+                };
+
+            case 'refunded':
+                return {
+                    ...baseFilter,
+                    paymentStatus: { $in: ["FULLY_REFUNDED", "PARTIALLY_REFUNDED"] }
+                };
+
+            case 'canceled':
+                return {
+                    ...baseFilter,
+                    status: { $eq: "CANCELED" }
+                };
+
+            case 'archived':
+                return {
+                    ...baseFilter,
+                    archived: { $eq: true }
+                };
+
+            default:
+                return baseFilter;
+        }
+    }
+
+    /**
+     * Helper to build API filters (extracted from AdvancedSearchService)
+     */
+    private buildApiFiltersForQuery(query: string, filters: SearchFilters): Record<string, any> {
+        const apiFilters: Record<string, any> = {
+            status: { $ne: "INITIALIZED" }
+        };
+
+        if (!query.trim()) return apiFilters;
+
+        const searchTerm = query.trim();
+
+        if (/^\d+$/.test(searchTerm)) {
+            apiFilters.number = { $eq: parseInt(searchTerm) };
+        } else if (this.isEmail(searchTerm)) {
+            apiFilters["buyerInfo.email"] = { $eq: searchTerm };
+        } else if (searchTerm.includes('@')) {
+            apiFilters["buyerInfo.email"] = { $startsWith: searchTerm };
+        } else if (searchTerm.length >= 3) {
+            apiFilters["buyerInfo.email"] = { $startsWith: searchTerm };
+        } else if (searchTerm.length >= 2) {
+            apiFilters["lineItems.productName.original"] = { $contains: searchTerm };
+        }
+
+        return apiFilters;
+    }
+
+    /**
+     * Helper to check if string is an email
+     */
+    private isEmail(str: string): boolean {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str);
+    }
+
+    /**
+     * Clear search and return to all orders
+     */
+    clearSearch(): void {
+        this.currentSearchQuery = '';
+        this.lastSearchResult = null;
+        this.orderStore.setSearchQuery('');
+        this.orderStore.setSearchResults(null);
+        this.advancedSearchService.clearCache();
+
+        // Cancel any pending search
+        if (this.searchTimeout) {
+            clearTimeout(this.searchTimeout);
+            this.searchTimeout = null;
+        }
+    }
+
+    /**
+     * Get current search statistics for UI display
+     */
+    getSearchStats(): {
+        isSearching: boolean;
+        hasResults: boolean;
+        totalFound: number;
+        fromCache: number;
+        fromApi: number;
+        searchTime: number;
+        hasMore: boolean;
+    } | null {
+        if (!this.lastSearchResult) {
+            return null;
+        }
+
+        return {
+            isSearching: this.uiStore.searching || false,
+            hasResults: this.lastSearchResult.totalFound > 0,
+            totalFound: this.lastSearchResult.totalFound,
+            fromCache: this.lastSearchResult.fromCache.length,
+            fromApi: this.lastSearchResult.fromApi.length,
+            searchTime: this.lastSearchResult.searchTime,
+            hasMore: this.lastSearchResult.hasMore
+        };
+    }
+
+    // === ORDER MANAGEMENT METHODS ===
+
+    /**
+     * Load initial orders with chunked loading
+     */
     async loadOrders() {
         const isDev = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1');
 
@@ -28,6 +417,9 @@ export class OrderController {
             this.uiStore.setLoading(true);
             this.orderStore.setConnectionStatus('connecting');
             this.orderStore.setLoadingStatus('Loading orders...');
+
+            // Clear any existing search when loading fresh orders
+            this.clearSearch();
 
             // Load initial 100 orders with progress updates
             const result = await this.orderService.fetchOrdersChunked(100, (orders, totalLoaded, hasMore) => {
@@ -66,45 +458,91 @@ export class OrderController {
         }
     }
 
-    // Add this method to OrderController.ts
+    /**
+ * Load more orders (pagination) - supports both regular and filtered modes
+ */
     async loadMoreOrders() {
         if (!this.orderStore.hasMoreOrders || this.orderStore.isLoadingMore) {
             return;
         }
 
         const isDev = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1');
-        console.log(`📦 [${isDev ? 'DEV' : 'PROD'}] Loading more orders...`);
+        console.log(`📦 [${isDev ? 'DEV' : 'PROD'}] Loading more orders... (Filter mode: ${this.isFilterMode})`);
 
         try {
             this.orderStore.setIsLoadingMore(true);
             this.orderStore.setLoadingStatus('Loading more orders...');
 
-            const result = await this.orderService.fetchMoreOrders(this.orderStore.nextCursor, 100);
+            if (this.isFilterMode && this.currentStatusFilter) {
+                // Load more filtered results using API search
+                console.log(`🔍 Loading more filtered results for: ${this.currentStatusFilter}`);
 
-            if (result.success) {
-                this.orderStore.appendOrders(result.orders);
-                this.orderStore.setHasMoreOrders(result.hasMore);
-                this.orderStore.setNextCursor(result.nextCursor || '');
+                const { orders } = await import('@wix/ecom');
+                const apiFilters = this.buildStatusApiFilters(this.currentStatusFilter);
 
-                console.log(`✅ [${isDev ? 'DEV' : 'PROD'}] Loaded ${result.orders.length} more orders, total: ${this.orderStore.orders.length}`);
+                const searchParams = {
+                    filter: apiFilters,
+                    cursorPaging: {
+                        limit: 100,
+                        cursor: this.orderStore.nextCursor
+                    },
+                    sort: [{ fieldName: '_createdDate' as const, order: 'DESC' as const }]
+                };
+
+                const result = await orders.searchOrders(searchParams);
+
+                if (result.orders && result.orders.length > 0) {
+                    const newOrders = result.orders.map(mapWixOrder);
+                    this.orderStore.appendOrders(newOrders);
+                    this.orderStore.setHasMoreOrders(result.metadata?.hasNext || false);
+                    this.orderStore.setNextCursor(result.metadata?.cursors?.next || '');
+
+                    console.log(`✅ [${isDev ? 'DEV' : 'PROD'}] Loaded ${newOrders.length} more filtered orders, total: ${this.orderStore.orders.length}`);
+                } else {
+                    this.orderStore.setHasMoreOrders(false);
+                    console.log(`📭 [${isDev ? 'DEV' : 'PROD'}] No more filtered orders available`);
+                }
+
             } else {
-                console.error(`❌ [${isDev ? 'DEV' : 'PROD'}] Failed to load more orders:`, result.error);
+                // Regular load more using OrderService
+                console.log(`📦 Loading more regular orders from cursor: ${this.orderStore.nextCursor}`);
+
+                const result = await this.orderService.fetchMoreOrders(this.orderStore.nextCursor, 100);
+
+                if (result.success) {
+                    this.orderStore.appendOrders(result.orders);
+                    this.orderStore.setHasMoreOrders(result.hasMore);
+                    this.orderStore.setNextCursor(result.nextCursor || '');
+
+                    console.log(`✅ [${isDev ? 'DEV' : 'PROD'}] Loaded ${result.orders.length} more orders, total: ${this.orderStore.orders.length}`);
+                } else {
+                    console.error(`❌ [${isDev ? 'DEV' : 'PROD'}] Failed to load more orders:`, result.error);
+                    this.orderStore.setHasMoreOrders(false);
+                }
             }
 
         } catch (error) {
             console.error(`❌ [${isDev ? 'DEV' : 'PROD'}] Error loading more orders:`, error);
+            this.orderStore.setHasMoreOrders(false);
+
+            // Don't show toast for load more errors to avoid spam
+            console.error('Load more failed, stopping pagination');
         } finally {
             this.orderStore.setIsLoadingMore(false);
             this.orderStore.setLoadingStatus('');
         }
     }
 
+    /**
+     * Refresh orders
+     */
     async refreshOrders() {
         const isDev = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1');
         console.log(`🔄 [${isDev ? 'DEV' : 'PROD'}] OrderController: Starting refresh`);
 
         this.uiStore.setRefreshing(true);
         this.clearSelection();
+        this.clearSearch(); // Clear search on refresh
 
         try {
             const result = await this.orderService.fetchOrders({
@@ -133,7 +571,6 @@ export class OrderController {
                 this.showToast(`Orders refreshed successfully.`, 'success');
                 this.autoSelectOldestUnfulfilled();
 
-
             } else {
                 this.handleNoOrdersFound(result.message);
             }
@@ -146,6 +583,9 @@ export class OrderController {
         }
     }
 
+    /**
+     * Select an order
+     */
     selectOrder(order: Order) {
         this.orderStore.selectOrder(order);
         this.uiStore.resetForm();
@@ -159,11 +599,17 @@ export class OrderController {
         }
     }
 
+    /**
+     * Clear order selection
+     */
     clearSelection() {
         this.orderStore.selectOrder(null);
         this.uiStore.resetForm();
     }
 
+    /**
+     * Fulfill an order
+     */
     async fulfillOrder() {
         const { selectedOrder } = this.orderStore;
         const { trackingNumber, selectedCarrier } = this.uiStore;
@@ -216,6 +662,11 @@ export class OrderController {
         }
     }
 
+    // === ANALYTICS METHODS ===
+
+    /**
+     * Load analytics for a specific period
+     */
     async loadAnalyticsForPeriod(period: 'today' | 'yesterday' | '7days' | '30days' | 'thisweek' | 'thismonth' | '365days' | 'thisyear' = '30days') {
         try {
             this.orderStore.setAnalyticsLoading(true);
@@ -268,7 +719,9 @@ export class OrderController {
         }
     }
 
-    // Enhanced fallback method with comparison
+    /**
+     * Enhanced fallback method with comparison
+     */
     private calculateAnalyticsFromOrdersWithComparison(period: string) {
         const { current, previous } = this.getOrderDateRanges(period);
 
@@ -309,7 +762,9 @@ export class OrderController {
         });
     }
 
-    // Helper method to calculate metrics from orders
+    /**
+     * Helper method to calculate metrics from orders
+     */
     private calculateOrderMetrics(orders: any[]) {
         let totalSales = 0;
         let currency = '€';
@@ -334,7 +789,9 @@ export class OrderController {
         };
     }
 
-    // Helper method to get date ranges for order comparison
+    /**
+     * Helper method to get date ranges for order comparison
+     */
     private getOrderDateRanges(period: string) {
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -381,7 +838,11 @@ export class OrderController {
         }
     }
 
-    // Helper methods for price parsing
+    // === UTILITY METHODS ===
+
+    /**
+     * Helper methods for price parsing
+     */
     private parsePrice(priceString: string): number {
         if (!priceString || typeof priceString !== 'string') return 0;
 
@@ -421,10 +882,9 @@ export class OrderController {
         return '€';
     }
 
-    updateSearchQuery(query: string) {
-        this.orderStore.setSearchQuery(query);
-    }
-
+    /**
+     * Copy text to clipboard
+     */
     async copyToClipboard(text: string, label: string) {
         try {
             await navigator.clipboard.writeText(text);
@@ -434,6 +894,9 @@ export class OrderController {
         }
     }
 
+    /**
+     * Auto-select oldest unfulfilled order
+     */
     private autoSelectOldestUnfulfilled() {
         const oldestUnfulfilled = this.orderStore.oldestUnfulfilledOrder;
         if (oldestUnfulfilled && !this.orderStore.selectedOrder) {
@@ -441,11 +904,18 @@ export class OrderController {
             this.selectOrder(oldestUnfulfilled);
         }
     }
+
+    /**
+     * Handle no orders found scenario
+     */
     private handleNoOrdersFound(message?: string) {
         this.orderStore.setOrders(DEMO_ORDERS as any);
         this.orderStore.setConnectionStatus('disconnected');
     }
 
+    /**
+     * Handle order loading errors
+     */
     private handleLoadError(error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
 
@@ -453,6 +923,9 @@ export class OrderController {
         this.orderStore.setConnectionStatus('error');
     }
 
+    /**
+     * Handle refresh errors
+     */
     private handleRefreshError(error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
 
@@ -469,6 +942,9 @@ export class OrderController {
         this.showToast(`Failed to refresh orders: ${errorMessage}`, 'error');
     }
 
+    /**
+     * Show toast notification
+     */
     private showToast(message: string, type: 'success' | 'error' | 'warning') {
         dashboard.showToast({ message, type });
     }

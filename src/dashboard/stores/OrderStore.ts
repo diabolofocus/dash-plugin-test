@@ -1,5 +1,7 @@
+// stores/OrderStore.ts - UPDATED with Search Support
 import { makeAutoObservable } from 'mobx';
 import type { Order, OrderStatus, ConnectionStatus } from '../types/Order';
+import type { SearchResult } from '../services/AdvancedSearchService';
 
 interface FormattedAnalytics {
     totalSales: number;
@@ -31,6 +33,11 @@ export class OrderStore {
     selectedOrder: Order | null = null;
     connectionStatus: ConnectionStatus = 'disconnected';
     searchQuery: string = '';
+
+    // NEW: Search-related properties
+    searchResults: SearchResult | null = null;
+    isSearching: boolean = false;
+
     pagination = {
         hasNext: false,
         nextCursor: '',
@@ -92,6 +99,7 @@ export class OrderStore {
     clearOrders() {
         this.orders = [];
         this.selectedOrder = null;
+        this.searchResults = null;
     }
 
     selectOrder(order: Order | null) {
@@ -105,6 +113,17 @@ export class OrderStore {
                 ...this.orders[orderIndex],
                 status
             };
+        }
+
+        // Also update in search results if they exist
+        if (this.searchResults) {
+            const searchOrderIndex = this.searchResults.orders.findIndex(o => o._id === orderId);
+            if (searchOrderIndex !== -1) {
+                this.searchResults.orders[searchOrderIndex] = {
+                    ...this.searchResults.orders[searchOrderIndex],
+                    status
+                };
+            }
         }
 
         if (this.selectedOrder?._id === orderId) {
@@ -121,6 +140,14 @@ export class OrderStore {
             this.orders[orderIndex] = updatedOrder;
         }
 
+        // Also update in search results if they exist
+        if (this.searchResults) {
+            const searchOrderIndex = this.searchResults.orders.findIndex(o => o._id === updatedOrder._id);
+            if (searchOrderIndex !== -1) {
+                this.searchResults.orders[searchOrderIndex] = updatedOrder;
+            }
+        }
+
         if (this.selectedOrder?._id === updatedOrder._id) {
             this.selectedOrder = updatedOrder;
         }
@@ -128,6 +155,12 @@ export class OrderStore {
 
     removeOrder(orderId: string) {
         this.orders = this.orders.filter(o => o._id !== orderId);
+
+        // Also remove from search results if they exist
+        if (this.searchResults) {
+            this.searchResults.orders = this.searchResults.orders.filter(o => o._id !== orderId);
+            this.searchResults.totalFound = this.searchResults.orders.length;
+        }
 
         if (this.selectedOrder?._id === orderId) {
             this.selectedOrder = null;
@@ -140,6 +173,17 @@ export class OrderStore {
 
     clearSearch() {
         this.searchQuery = '';
+        this.searchResults = null;
+        this.isSearching = false;
+    }
+
+    // NEW: Search methods
+    setSearchResults(results: SearchResult | null) {
+        this.searchResults = results;
+    }
+
+    setIsSearching(searching: boolean) {
+        this.isSearching = searching;
     }
 
     setConnectionStatus(status: ConnectionStatus) {
@@ -234,7 +278,14 @@ export class OrderStore {
         return this.orders.length;
     }
 
+    // UPDATED: filteredOrders now considers search results
     get filteredOrders() {
+        // If we have search results, return those instead of filtering the main orders
+        if (this.searchResults && this.searchQuery.trim()) {
+            return this.searchResults.orders;
+        }
+
+        // Legacy filtering for when not using advanced search
         if (!this.searchQuery.trim()) {
             return this.orders;
         }
@@ -256,29 +307,58 @@ export class OrderStore {
                 lastName.toLowerCase().includes(term) ||
                 email.toLowerCase().includes(term) ||
                 phone.toLowerCase().includes(term) ||
-                company.toLowerCase().includes(term) ||
-                order.items?.some(item =>
-                    item.name?.toLowerCase().includes(term) ||
-                    item.sku?.toLowerCase().includes(term)
-                )
+                company.toLowerCase().includes(term)
             );
         });
     }
 
+    // NEW: Computed properties for search
+    get hasActiveSearch(): boolean {
+        return this.searchQuery.trim() !== '';
+    }
+
+    get searchResultsCount(): number {
+        return this.searchResults?.totalFound || 0;
+    }
+
+    get isDisplayingSearchResults(): boolean {
+        return this.hasActiveSearch && this.searchResults !== null;
+    }
+
+    get searchHasMore(): boolean {
+        return this.searchResults?.hasMore || false;
+    }
+
+    get searchStats() {
+        if (!this.searchResults) return null;
+
+        return {
+            totalFound: this.searchResults.totalFound,
+            fromCache: this.searchResults.fromCache.length,
+            fromApi: this.searchResults.fromApi.length,
+            searchTime: this.searchResults.searchTime,
+            hasMore: this.searchResults.hasMore
+        };
+    }
+
     get fulfilledOrders() {
-        return this.orders.filter(order => order.status === 'FULFILLED');
+        const ordersToCheck = this.isDisplayingSearchResults ? this.searchResults!.orders : this.orders;
+        return ordersToCheck.filter(order => order.status === 'FULFILLED');
     }
 
     get pendingOrders() {
-        return this.orders.filter(order => order.status === 'NOT_FULFILLED');
+        const ordersToCheck = this.isDisplayingSearchResults ? this.searchResults!.orders : this.orders;
+        return ordersToCheck.filter(order => order.status === 'NOT_FULFILLED');
     }
 
     get partiallyFulfilledOrders() {
-        return this.orders.filter(order => order.status === 'PARTIALLY_FULFILLED');
+        const ordersToCheck = this.isDisplayingSearchResults ? this.searchResults!.orders : this.orders;
+        return ordersToCheck.filter(order => order.status === 'PARTIALLY_FULFILLED');
     }
 
     get canceledOrders() {
-        return this.orders.filter(order => order.status === 'CANCELED');
+        const ordersToCheck = this.isDisplayingSearchResults ? this.searchResults!.orders : this.orders;
+        return ordersToCheck.filter(order => order.status === 'CANCELED');
     }
 
     get hasSelectedOrder() {
@@ -290,7 +370,8 @@ export class OrderStore {
     }
 
     get oldestUnfulfilledOrder() {
-        const unfulfilledOrders = this.orders.filter(order =>
+        const ordersToCheck = this.isDisplayingSearchResults ? this.searchResults!.orders : this.orders;
+        const unfulfilledOrders = ordersToCheck.filter(order =>
             order.status === 'NOT_FULFILLED' || order.status === 'PARTIALLY_FULFILLED'
         );
 
@@ -302,7 +383,8 @@ export class OrderStore {
     }
 
     get unfulfilledOrdersCount() {
-        return this.orders.filter(order =>
+        const ordersToCheck = this.isDisplayingSearchResults ? this.searchResults!.orders : this.orders;
+        return ordersToCheck.filter(order =>
             order.status === 'NOT_FULFILLED' || order.status === 'PARTIALLY_FULFILLED'
         ).length;
     }
@@ -341,14 +423,16 @@ export class OrderStore {
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-        return this.orders.filter(order => {
+        const ordersToCheck = this.isDisplayingSearchResults ? this.searchResults!.orders : this.orders;
+        return ordersToCheck.filter(order => {
             const orderDate = new Date(order._createdDate);
             return orderDate >= thirtyDaysAgo;
         });
     }
 
     getOrdersByDateRange(startDate: Date, endDate: Date): Order[] {
-        return this.orders.filter(order => {
+        const ordersToCheck = this.isDisplayingSearchResults ? this.searchResults!.orders : this.orders;
+        return ordersToCheck.filter(order => {
             const orderDate = new Date(order._createdDate);
             return orderDate >= startDate && orderDate <= endDate;
         });
@@ -398,10 +482,22 @@ export class OrderStore {
     }
 
     getOrderById(orderId: string): Order | undefined {
+        // Check search results first if we're in search mode
+        if (this.isDisplayingSearchResults) {
+            const searchOrder = this.searchResults!.orders.find(order => order._id === orderId);
+            if (searchOrder) return searchOrder;
+        }
+
         return this.orders.find(order => order._id === orderId);
     }
 
     getOrderByNumber(orderNumber: string): Order | undefined {
+        // Check search results first if we're in search mode
+        if (this.isDisplayingSearchResults) {
+            const searchOrder = this.searchResults!.orders.find(order => order.number === orderNumber);
+            if (searchOrder) return searchOrder;
+        }
+
         return this.orders.find(order => order.number === orderNumber);
     }
 
@@ -411,7 +507,9 @@ export class OrderStore {
         }
 
         const term = searchTerm.toLowerCase();
-        return this.orders.filter(order =>
+        const ordersToSearch = this.isDisplayingSearchResults ? this.searchResults!.orders : this.orders;
+
+        return ordersToSearch.filter(order =>
             order.number.toLowerCase().includes(term) ||
             order.customer.firstName.toLowerCase().includes(term) ||
             order.customer.lastName.toLowerCase().includes(term) ||
@@ -425,17 +523,20 @@ export class OrderStore {
     }
 
     getOrdersByStatus(status: OrderStatus): Order[] {
-        return this.orders.filter(order => order.status === status);
+        const ordersToCheck = this.isDisplayingSearchResults ? this.searchResults!.orders : this.orders;
+        return ordersToCheck.filter(order => order.status === status);
     }
 
     getOrderStats() {
+        const ordersToCheck = this.isDisplayingSearchResults ? this.searchResults!.orders : this.orders;
+
         return {
-            total: this.orders.length,
+            total: ordersToCheck.length,
             fulfilled: this.fulfilledOrders.length,
             pending: this.pendingOrders.length,
             partiallyFulfilled: this.partiallyFulfilledOrders.length,
             canceled: this.canceledOrders.length,
-            totalValue: this.orders.reduce((sum, order) => {
+            totalValue: ordersToCheck.reduce((sum, order) => {
                 const value = parseFloat(order.total.replace(/[^0-9.-]+/g, ''));
                 return sum + (isNaN(value) ? 0 : value);
             }, 0)
@@ -461,6 +562,13 @@ export class OrderStore {
             filteredCount: this.filteredOrders.length,
             pagination: this.pagination,
             stats: this.getOrderStats(),
+            search: {
+                hasActiveSearch: this.hasActiveSearch,
+                isDisplayingSearchResults: this.isDisplayingSearchResults,
+                searchResultsCount: this.searchResultsCount,
+                isSearching: this.isSearching,
+                searchStats: this.searchStats
+            },
             analytics: {
                 loading: this.analyticsLoading,
                 error: this.analyticsError,
