@@ -16,7 +16,7 @@ export const RefreshButton: React.FC = observer(() => {
             border="outlined"
             onClick={() => orderController.refreshOrders()}
             disabled={uiStore.refreshing}
-            prefixIcon={uiStore.refreshing ? <Loader size="tiny" /> : <Icons.Refresh />}
+            suffixIcon={uiStore.refreshing ? <Loader size="tiny" /> : <Icons.Refresh />}
         >
             {uiStore.refreshing ? 'Refreshing...' : 'Refresh'}
         </Button>

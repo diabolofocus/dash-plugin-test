@@ -53,14 +53,6 @@ export const TrackingNumberDisplay: React.FC<TrackingNumberDisplayProps> = ({
         fetchTrackingInfo();
     }, [orderId]);
 
-    if (loading) {
-        return (
-            <Text size="small" secondary>
-                Loading tracking info...
-            </Text>
-        );
-    }
-
     // Only show tracking if tracking info exists (regardless of order status)
     if (!trackingInfo?.trackingNumber) {
         return null;
@@ -73,14 +65,14 @@ export const TrackingNumberDisplay: React.FC<TrackingNumberDisplayProps> = ({
     };
 
     return (
-        <Box direction="vertical" gap="2px">
-            {/* Tracking Number Link - Only shown when tracking data exists */}
+        <Box direction="horizontal" align="left" gap="4px">
+            <Text size="small">Tracking: </Text>
             <TextButton
                 size="small"
                 underline="onHover"
                 onClick={handleTrackingClick}
             >
-                Tracking: {trackingInfo.trackingNumber}
+                {trackingInfo.trackingNumber}
             </TextButton>
         </Box>
     );

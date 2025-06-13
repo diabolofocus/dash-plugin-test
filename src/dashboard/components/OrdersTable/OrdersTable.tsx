@@ -25,6 +25,10 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { orders } from '@wix/ecom';
 import { orderTransactions } from '@wix/ecom';
+import { orderFulfillments } from '@wix/ecom';
+import { getSiteIdFromContext } from '../../utils/get-siteId';
+import { handleViewOrderOverlayEnhanced } from '../../utils/dashboard-navigation-overlay';
+
 
 
 export const OrdersTable: React.FC = observer(() => {
@@ -33,6 +37,9 @@ export const OrdersTable: React.FC = observer(() => {
     const [selectedStatusFilter, setSelectedStatusFilter] = useState(null);
     const containerRef = useRef(null);
     const [container, setContainer] = useState(null);
+
+    // Add tracking info cache
+    const [orderTrackingCache, setOrderTrackingCache] = useState<Record<string, { trackingNumber?: string; trackingLink?: string } | null>>({});
 
     const loadMoreOrders = useCallback(async () => {
         if (!orderStore.isLoadingMore && orderStore.hasMoreOrders) {
@@ -45,6 +52,49 @@ export const OrdersTable: React.FC = observer(() => {
         setContainer(containerRef);
     }, []);
 
+    // Helper function to get or fetch tracking info
+    const getTrackingInfo = async (orderId: string) => {
+        // Return cached result if available
+        if (orderTrackingCache[orderId] !== undefined) {
+            return orderTrackingCache[orderId];
+        }
+
+        try {
+            const response = await orderFulfillments.listFulfillmentsForSingleOrder(orderId);
+            const fulfillments = response.orderWithFulfillments?.fulfillments || [];
+
+            // Get the most recent fulfillment with tracking info
+            const withTracking = fulfillments
+                .filter(f => f.trackingInfo?.trackingNumber)
+                .sort((a, b) => new Date(b._createdDate).getTime() - new Date(a._createdDate).getTime())[0];
+
+            const trackingInfo = withTracking?.trackingInfo || null;
+
+            // Cache the result
+            setOrderTrackingCache(prev => ({
+                ...prev,
+                [orderId]: trackingInfo
+            }));
+
+            return trackingInfo;
+        } catch (error) {
+            console.error('Error fetching tracking info for order:', orderId, error);
+            // Cache null result to avoid repeated failed requests
+            setOrderTrackingCache(prev => ({
+                ...prev,
+                [orderId]: null
+            }));
+            return null;
+        }
+    };
+
+    // Handler for track order action
+    const handleTrackOrder = async (order: Order) => {
+        const trackingInfo = await getTrackingInfo(order._id);
+        if (trackingInfo?.trackingLink) {
+            window.open(trackingInfo.trackingLink, '_blank', 'noopener,noreferrer');
+        }
+    };
 
     const statusFilterOptions = [
         { id: 'unfulfilled', value: 'Unfulfilled' },
@@ -80,17 +130,102 @@ export const OrdersTable: React.FC = observer(() => {
         });
     }, []);
 
+    // For AddNewOrderButton
+    const AddNewOrderButton: React.FC = () => {
+        const handleAddNewOrder = async () => {
+            try {
+                // Import pages from ecom/dashboard
+                const { pages } = await import('@wix/ecom/dashboard');
+
+                // Navigate directly to the New Order page
+                await dashboard.navigate(pages.newOrder());
+
+                // Show persistent toast with "Go back to app" button
+                dashboard.showToast({
+                    message: 'New Order page opened',
+                    type: 'success',
+                    timeout: 'none', // Keep the toast persistent
+                    action: {
+                        uiType: 'button',
+                        text: 'Go back to app',
+                        removeToastOnClick: true,
+                        onClick: () => {
+                            console.log('🔗 Attempting to navigate back to app...');
+
+                            // Get site ID
+                            const siteId = getSiteIdFromContext();
+                            if (siteId) {
+                                const appUrl = `https://manage.wix.com/dashboard/${siteId}/fab32ea8-b5a8-48c6-a2c5-0afcc6053ff2`;
+                                console.log('App URL:', appUrl);
+
+                                // Try navigation
+                                window.location.href = appUrl;
+                            } else {
+                                console.warn('Site ID not found, using fallback navigation');
+                                window.history.back();
+                            }
+                        }
+                    }
+                });
+
+            } catch (error) {
+                console.error('Error navigating to new order page:', error);
+                dashboard.showToast({
+                    message: 'Failed to open new order page. Please try again.',
+                    type: 'error'
+                });
+            }
+        };
+
+        return (
+            <Button
+                size="medium"
+                border="outlined"
+                onClick={handleAddNewOrder}
+                suffixIcon={<Icons.Add />}
+            >
+                Add New Order
+            </Button>
+        );
+    };
+
+
     const handleViewOrder = (order: Order) => {
         try {
+            if (!order?._id) {
+                console.error('Order ID is missing');
+                return;
+            }
+
+            const orderId = String(order._id).trim();
+            console.log(`Opening order details for Order #${order.number}, ID: ${orderId}`);
+
             dashboard.navigate(
                 pages.orderDetails({
-                    id: order._id
-                })
+                    id: orderId
+                }),
+                {
+                    displayMode: "overlay"
+                }
             );
+
         } catch (error) {
-            console.error('Failed to navigate to order details:', error);
+            console.error('Navigation failed:', error);
         }
     };
+
+    // const handleViewOrder = (order: Order) => {
+    //     try {
+    //         dashboard.navigate(
+    //             pages.orderDetails({
+    //                 id: order._id
+    //             }),
+    //             { displayMode: "overlay" }
+    //         );
+    //     } catch (error) {
+    //         console.error('Failed to navigate to order details:', error);
+    //     }
+    // };
 
     // Helper function to convert Wix image URLs to accessible URLs
     const convertWixImageUrl = (imageUrl: string): string => {
@@ -752,37 +887,64 @@ export const OrdersTable: React.FC = observer(() => {
         },
         {
             title: 'Actions',
-            render: (order: Order) => (
-                <TableActionCell
-                    size="small"
-                    popoverMenuProps={{
-                        zIndex: 1000,
-                        appendTo: "window"
-                    }}
-                    secondaryActions={[
-                        {
-                            text: "View Order",
-                            icon: <Icons.Order />,
-                            onClick: () => handleViewOrder(order)
-                        },
-                        {
-                            text: "Print Order",
-                            icon: <Icons.Print />,
-                            onClick: () => handlePrintOrder(order)
-                        },
-                        {
-                            divider: true
-                        },
-                        {
-                            text: "Archive Order",
-                            icon: <Icons.Archive />,
-                            onClick: () => handleArchiveOrder(order)
-                        }
-                    ]}
-                    numOfVisibleSecondaryActions={0}
-                    alwaysShowSecondaryActions={false}
-                />
-            ),
+            render: (order: Order) => {
+                // Check if we have cached tracking info
+                const cachedTracking = orderTrackingCache[order._id];
+                const hasTracking = cachedTracking?.trackingNumber;
+
+                // Build secondary actions array
+                const secondaryActions = [
+                    {
+                        text: "View Order",
+                        icon: <Icons.Order />,
+                        onClick: () => handleViewOrder(order)
+                    }
+                ];
+
+                // Conditionally add Track Order action if tracking exists
+                if (hasTracking) {
+                    secondaryActions.push({
+                        text: "Track Order",
+                        icon: <Icons.ExternalLink />,
+                        onClick: () => handleTrackOrder(order)
+                    });
+                }
+
+                // Add remaining actions
+                secondaryActions.push({
+                    text: "Print Order",
+                    icon: <Icons.Print />,
+                    onClick: () => handlePrintOrder(order)
+                });
+
+                // Add divider as separate item
+                secondaryActions.push({ divider: true } as any);
+
+                secondaryActions.push({
+                    text: "Archive Order",
+                    icon: <Icons.Archive />,
+                    onClick: () => handleArchiveOrder(order)
+                });
+
+                return (
+                    <TableActionCell
+                        size="small"
+                        popoverMenuProps={{
+                            zIndex: 1000,
+                            appendTo: "window",
+                            // Fetch tracking info when menu opens
+                            onShow: () => {
+                                if (orderTrackingCache[order._id] === undefined) {
+                                    getTrackingInfo(order._id);
+                                }
+                            }
+                        }}
+                        secondaryActions={secondaryActions}
+                        numOfVisibleSecondaryActions={0}
+                        alwaysShowSecondaryActions={false}
+                    />
+                );
+            },
             width: '80px',
             align: 'end' as const,
             stickyActionCell: true,

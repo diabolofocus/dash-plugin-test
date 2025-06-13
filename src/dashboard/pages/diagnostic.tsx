@@ -209,7 +209,7 @@ export default function DiagnosticPage() {
                                 <Button
                                     onClick={runDiagnostic}
                                     disabled={loading}
-                                    prefixIcon={loading ? <Loader size="tiny" /> : undefined}
+                                    suffixIcon={loading ? <Loader size="tiny" /> : undefined}
                                 >
                                     {loading ? 'Running Diagnostic...' : 'Run Diagnostic'}
                                 </Button>

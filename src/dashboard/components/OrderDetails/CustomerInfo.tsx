@@ -1,5 +1,5 @@
 // components/OrderDetails/CustomerInfo.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Text, TextButton, Avatar, Tooltip } from '@wix/design-system';
 import { useOrderController } from '../../hooks/useOrderController';
 import { dashboard } from '@wix/dashboard';
@@ -13,6 +13,8 @@ interface CustomerInfoProps {
 export const CustomerInfo: React.FC<CustomerInfoProps> = ({ order }) => {
     const orderController = useOrderController();
     const [isNavigating, setIsNavigating] = useState(false);
+    const [contactImageUrl, setContactImageUrl] = useState<string | null>(null);
+    const [loadingAvatar, setLoadingAvatar] = useState(false);
 
     // Safely extract contact details with fallbacks
     const recipientContact = order.rawOrder?.recipientInfo?.contactDetails;
@@ -32,6 +34,46 @@ export const CustomerInfo: React.FC<CustomerInfoProps> = ({ order }) => {
     // Email should be available from order.customer
     const email = order.customer.email || 'No email provided';
 
+    // Function to fetch contact's profile picture
+    const fetchContactAvatar = async (contactId: string) => {
+        if (!contactId) return;
+
+        try {
+            setLoadingAvatar(true);
+            console.log(`Fetching avatar for contact ID: ${contactId}`);
+
+            const contact = await contacts.getContact(contactId, {
+                fields: ['info.picture'] // Specify the fields to retrieve
+            });
+
+            if (contact.info?.picture?.image) {
+                // ContactPicture has an 'image' property containing the URL or Wix Media GUID
+                const imageUrl = contact.info.picture.image;
+                setContactImageUrl(imageUrl);
+                console.log('Contact avatar found:', imageUrl);
+            } else {
+                console.log('No avatar found for contact');
+                setContactImageUrl(null);
+            }
+        } catch (error) {
+            console.error('Failed to fetch contact avatar:', error);
+            setContactImageUrl(null);
+        } finally {
+            setLoadingAvatar(false);
+        }
+    };
+
+    // Fetch contact avatar when component mounts or order changes
+    React.useEffect(() => {
+        const contactId = order.rawOrder?.buyerInfo?.contactId;
+        if (contactId) {
+            fetchContactAvatar(contactId);
+        } else {
+            console.log('No contact ID found in order.rawOrder.buyerInfo.contactId');
+            setContactImageUrl(null);
+        }
+    }, [order._id, order.rawOrder?.buyerInfo?.contactId]);
+
     const handleContactPageNavigation = async () => {
         if (!email || email === 'No email provided') {
             console.warn('No email available to search for contact');
@@ -40,9 +82,7 @@ export const CustomerInfo: React.FC<CustomerInfoProps> = ({ order }) => {
 
         try {
             setIsNavigating(true);
-            console.log(`Searching for contact with email: ${email}`);
 
-            // Step 1: Query contact by email to get contact ID
             const queryResult = await contacts.queryContacts()
                 .eq('primaryInfo.email', email)
                 .limit(1)
@@ -52,28 +92,20 @@ export const CustomerInfo: React.FC<CustomerInfoProps> = ({ order }) => {
                 const contactId = queryResult.items[0]._id;
                 console.log(`Found contact ID: ${contactId}`);
 
-                // Step 2: Navigate to specific contact view page
-                // URL pattern: /contacts/view/{contactId}
-                dashboard.navigate({
-                    pageId: "bdd09dca-7cc9-4524-81d7-c9336071b33e", // Contacts List page
-                    relativeUrl: `/view/${contactId}`
-                });
-            } else {
-                console.warn(`No contact found with email: ${email}`);
 
-                // Fallback: Navigate to contacts list with search
                 dashboard.navigate({
-                    pageId: "bdd09dca-7cc9-4524-81d7-c9336071b33e", // Contacts List page
-                    relativeUrl: `?search=${encodeURIComponent(email)}`
-                });
+                    pageId: "bdd09dca-7cc9-4524-81d7-c9336071b33e",
+                    relativeUrl: `/view/${contactId}`
+                },
+                    // {
+                    //     displayMode: "overlay"
+                    // }
+                );
+
             }
 
         } catch (error) {
             console.error('Failed to find contact or navigate:', error);
-
-            // Fallback: Copy email to clipboard for manual search
-            orderController.copyToClipboard(email, 'Contact Email');
-            alert(`Contact lookup failed. Email "${email}" copied to clipboard. You can search for this contact manually in the Contacts page.`);
         } finally {
             setIsNavigating(false);
         }
@@ -81,19 +113,15 @@ export const CustomerInfo: React.FC<CustomerInfoProps> = ({ order }) => {
 
     return (
         <Box gap="6px" direction="vertical">
-            <Text size="small" className="section-title">Contact Info:</Text>
+            <Text size="small" className="section-title">Contact Details:</Text>
 
-            {/* Customer Name with Avatar and TextButton with Tooltip */}
             <Box direction="horizontal" align="left" verticalAlign="middle" gap="8px">
-                {/* Profile Avatar */}
                 <Avatar
                     size="size30"
                     name={fullName}
-                // If you have contact profile image URL, you can add it here:
-                // imgProps={{ src: contactImageUrl }}
+                    imgProps={contactImageUrl ? { src: contactImageUrl } : undefined}
                 />
 
-                {/* Customer Name as TextButton with Tooltip */}
                 <Tooltip content="View Contact">
                     <TextButton
                         size="medium"
@@ -107,7 +135,7 @@ export const CustomerInfo: React.FC<CustomerInfoProps> = ({ order }) => {
                             padding: 0,
                             minHeight: 'auto',
                             fontWeight: 'normal',
-                            maxWidth: '200px' // Ensure ellipsis works properly
+                            maxWidth: '200px'
                         }}
                     >
                         {isNavigating ? 'Opening contact...' : fullName}

@@ -9,7 +9,7 @@ import { useOrderController } from '../hooks/useOrderController';
 import { LoadingScreen } from './shared/LoadingScreen';
 import { ActionsBar } from './shared/ActionsBar';
 import { ConnectionStatus } from './shared/ConnectionStatus';
-import { OrdersTable } from './OrdersTable/OrdersTable';
+import { OrdersTableWithTabs } from './OrdersTable/OrdersTableWithTabs'; // Updated import
 import { OrderDetails } from './OrderDetails/OrderDetails';
 
 export const OrderFulfillmentPage: React.FC = observer(() => {
@@ -180,7 +180,7 @@ export const OrderFulfillmentPage: React.FC = observer(() => {
                 overflow: 'hidden' // Ensures table handles its own overflow
               }}>
                 <Page.Sticky>
-                  <OrdersTable />
+                  <OrdersTableWithTabs />
                 </Page.Sticky>
               </div>
 

@@ -1,6 +1,6 @@
-// components/FulfillmentForm/FulfillmentForm.tsx - FIXED email status display + order status handling
+// components/FulfillmentForm/FulfillmentForm.tsx 
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
 import { Box, Button, FormField, Input, Dropdown, Loader, Text, Checkbox, TextButton } from '@wix/design-system';
 import * as Icons from '@wix/wix-ui-icons-common';
@@ -8,6 +8,22 @@ import { useStores } from '../../hooks/useStores';
 import { useOrderController } from '../../hooks/useOrderController';
 import { SHIPPING_CARRIERS } from '../../utils/constants';
 import { dashboard } from '@wix/dashboard';
+
+interface FulfillmentResponse {
+    success: boolean;
+    message?: string;
+    error?: string;
+    method?: string;
+    isTrackingUpdate?: boolean;
+    emailInfo?: {
+        emailRequested: boolean;
+        emailSentAutomatically: boolean;
+        emailSent?: boolean;
+        customerEmail?: string;
+        note: string;
+        isTrackingUpdate?: boolean;
+    };
+}
 
 export const FulfillmentForm: React.FC = observer(() => {
     const { orderStore, uiStore } = useStores();
@@ -28,12 +44,29 @@ export const FulfillmentForm: React.FC = observer(() => {
         return trackingUrls[carrier] || '';
     };
 
-    // Check if order is already fulfilled
     const isOrderFulfilled = selectedOrder?.status === 'FULFILLED';
 
-    // 🔥 NEW: Email checkbox state (checked by default for new orders, unchecked and disabled for fulfilled orders)
-    const [sendConfirmationEmail, setSendConfirmationEmail] = useState(!isOrderFulfilled);
+    // Always set to true and don't allow changes
+    const sendConfirmationEmail = true;
+
     const [lastFulfillmentResult, setLastFulfillmentResult] = useState<any>(null);
+
+    const [showEmailNote, setShowEmailNote] = useState(false);
+    const [emailNoteMessage, setEmailNoteMessage] = useState('');
+
+    useEffect(() => {
+        if (selectedOrder) {
+            setLastFulfillmentResult(null);
+            setShowEmailNote(false);
+            setEmailNoteMessage('');
+
+            if (!selectedCarrier && SHIPPING_CARRIERS.length > 0) {
+                const firstCarrier = SHIPPING_CARRIERS[0].id as string;
+                uiStore.setSelectedCarrier(firstCarrier);
+                console.log(`🚛 Auto-selected first carrier: ${firstCarrier}`);
+            }
+        }
+    }, [selectedOrder?._id, selectedCarrier]);
 
     if (!selectedOrder) {
         return (
@@ -45,30 +78,6 @@ export const FulfillmentForm: React.FC = observer(() => {
             </Box>
         );
     }
-
-    const handleOrderLinkClick = () => {
-        try {
-            const order = orderStore.selectedOrder;
-
-            if (!order) {
-                console.warn('No order selected for navigation');
-                return;
-            }
-
-            console.log(`Order link clicked for order #${order.number}`);
-
-            // Navigate to order page in dashboard
-            dashboard.navigate({
-                pageId: "stores.orders",
-                relativeUrl: `?order=${order._id}`
-            });
-
-        } catch (error) {
-            console.error('Failed to navigate to order details:', error);
-            // Simple fallback: Show that details are already displayed
-            alert(`Order #${selectedOrder?.number || 'unknown'} details are displayed in this panel.`);
-        }
-    };
 
     const handleFulfillOrder = async () => {
         const { selectedOrder } = orderStore;
@@ -88,10 +97,9 @@ export const FulfillmentForm: React.FC = observer(() => {
                 trackingNumber,
                 shippingProvider: selectedCarrier,
                 trackingUrl,
-                sendConfirmationEmail
+                sendConfirmationEmail: true // Always true
             });
 
-            // FIXED: Use existing OrderService instead of direct backend import
             const orderService = new (await import('../../services/OrderService')).OrderService();
 
             const result = await orderService.fulfillOrder({
@@ -100,8 +108,8 @@ export const FulfillmentForm: React.FC = observer(() => {
                 shippingProvider: selectedCarrier,
                 orderNumber: selectedOrder.number,
                 trackingUrl,
-                sendShippingEmail: sendConfirmationEmail // Pass email preference
-            });
+                sendShippingEmail: true // Always true
+            }) as FulfillmentResponse;
 
             setLastFulfillmentResult(result);
 
@@ -109,15 +117,12 @@ export const FulfillmentForm: React.FC = observer(() => {
                 throw new Error(result.message || 'Failed to fulfill order in Wix');
             }
 
-            // Update order status in store
             orderStore.updateOrderStatus(selectedOrder._id, 'FULFILLED');
 
-            // 🔥 FIXED: Show accurate email status message
-            let message = selectedOrder.status === 'FULFILLED'
+            let message = result.isTrackingUpdate
                 ? `Order #${selectedOrder.number} tracking updated: ${trackingNumber}`
                 : `Order #${selectedOrder.number} fulfilled with tracking: ${trackingNumber}`;
 
-            // Check actual email status from backend response
             if (result.emailInfo) {
                 if (result.emailInfo.emailSentAutomatically && result.emailInfo.customerEmail) {
                     message += ` • Email sent to ${result.emailInfo.customerEmail}`;
@@ -127,18 +132,27 @@ export const FulfillmentForm: React.FC = observer(() => {
                     message += ' • No email requested';
                 }
             } else {
-                // Fallback for cases where emailInfo is missing
-                if (sendConfirmationEmail) {
-                    message += ' • Email status unknown (check dashboard settings)';
-                } else {
-                    message += ' • No email sent';
-                }
+                message += ' • Email status unknown (check dashboard settings)';
             }
 
             console.log('✅ Fulfillment completed:', message);
 
-            // Clear form
-            orderController.clearSelection();
+            if (result.isTrackingUpdate) {
+                dashboard.showToast({
+                    message: `Order #${selectedOrder.number} tracking updated: ${trackingNumber}`,
+                    type: 'success',
+                    timeout: 'normal'
+                });
+            } else {
+                dashboard.showToast({
+                    message: `Order #${selectedOrder.number} fulfilled with tracking: ${trackingNumber}`,
+                    type: 'success',
+                    timeout: 'normal'
+                });
+            }
+
+            setEmailNoteMessage('Shipping confirmation sent automatically by Wix');
+            setShowEmailNote(true);
 
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
@@ -148,7 +162,7 @@ export const FulfillmentForm: React.FC = observer(() => {
                 success: false,
                 error: errorMessage,
                 emailInfo: {
-                    emailRequested: sendConfirmationEmail,
+                    emailRequested: true,
                     emailSentAutomatically: false,
                     note: 'Email not sent due to fulfillment failure'
                 }
@@ -160,37 +174,44 @@ export const FulfillmentForm: React.FC = observer(() => {
 
     return (
         <Box gap="24px" direction="vertical">
-            <FormField label="Shipping Carrier">
-                <Dropdown
-                    options={SHIPPING_CARRIERS}
-                    selectedId={selectedCarrier}
-                    onSelect={(option) => {
-                        uiStore.setSelectedCarrier(option.id as string);
-                        // Auto-populate tracking URL when carrier changes (if tracking number exists)
-                        if (trackingNumber && option.id) {
-                            const autoUrl = generateTrackingUrl(option.id as string, trackingNumber);
-                            uiStore.setTrackingUrl(autoUrl);
-                        }
+            <FormField label="Tracking Information">
+                <Box
+                    direction="horizontal"
+                    gap="6px"
+                    width="100%"
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: '100px 1fr',
+                        gap: '6px'
                     }}
-                    placeholder="Select carrier"
-                    disabled={submitting}
-                />
-            </FormField>
-
-            <FormField label="Tracking Number">
-                <Input
-                    value={trackingNumber}
-                    onChange={(e) => {
-                        uiStore.setTrackingNumber(e.target.value);
-                        // Auto-populate tracking URL when tracking number changes
-                        if (e.target.value && selectedCarrier) {
-                            const autoUrl = generateTrackingUrl(selectedCarrier, e.target.value);
-                            uiStore.setTrackingUrl(autoUrl);
-                        }
-                    }}
-                    placeholder="Enter tracking number"
-                    disabled={submitting}
-                />
+                >
+                    <Dropdown
+                        options={SHIPPING_CARRIERS}
+                        selectedId={selectedCarrier}
+                        onSelect={(option) => {
+                            uiStore.setSelectedCarrier(option.id as string);
+                            if (trackingNumber && option.id) {
+                                const autoUrl = generateTrackingUrl(option.id as string, trackingNumber);
+                                uiStore.setTrackingUrl(autoUrl);
+                            }
+                        }}
+                        placeholder="Select carrier"
+                        disabled={submitting}
+                        minWidthPixels="120px"
+                    />
+                    <Input
+                        value={trackingNumber}
+                        onChange={(e) => {
+                            uiStore.setTrackingNumber(e.target.value);
+                            if (e.target.value && selectedCarrier) {
+                                const autoUrl = generateTrackingUrl(selectedCarrier, e.target.value);
+                                uiStore.setTrackingUrl(autoUrl);
+                            }
+                        }}
+                        placeholder="Enter tracking number"
+                        disabled={submitting}
+                    />
+                </Box>
             </FormField>
 
             {/* Tracking URL Field */}
@@ -203,61 +224,36 @@ export const FulfillmentForm: React.FC = observer(() => {
                 />
             </FormField>
 
-            {/* Email confirmation checkbox - disabled for fulfilled orders */}
+            {/* Always checked and disabled email confirmation checkbox */}
             <Box gap="8px" direction="vertical">
                 <Checkbox
-                    checked={sendConfirmationEmail}
-                    onChange={() => setSendConfirmationEmail(!sendConfirmationEmail)}
-                    disabled={submitting || isOrderFulfilled} // Disable for fulfilled orders
+                    checked={true}
+                    onChange={() => { }}
+                    disabled={true}
                     size="small"
                 >
                     Send confirmation email to customer
                 </Checkbox>
 
-                {/* Different text based on order status */}
-                {isOrderFulfilled ? (
-                    <Text size="tiny" secondary>
-                        Updated tracking emails can only be sent manually via the {' '}
-                        <TextButton
-                            size="tiny"
-                            underline="onHover"
-                            onClick={handleOrderLinkClick}
-                        >
-                            Order Details Page
-                        </TextButton>
-                    </Text>
-                ) : (
-                    sendConfirmationEmail && (
-                        <Text size="tiny" secondary>
-                            Make sure email settings are enabled for third party apps (Checkout → Edit Emails)
-                        </Text>
-                    )
-                )}
+                {/* Updated helper text */}
+                <Text size="tiny" secondary>
+                    Shipping confirmation Email sent automatically by Wix
+                </Text>
             </Box>
 
-            {/* Show email result from last fulfillment */}
-            {lastFulfillmentResult?.emailInfo && (
+            {/* Email confirmation note based on checkbox state */}
+            {showEmailNote && (
                 <Box
                     padding="12px"
-                    backgroundColor={lastFulfillmentResult.success ? '#f0f9ff' : '#fef2f2'}
+                    backgroundColor="#f0f9ff"
                     style={{
                         borderRadius: '4px',
-                        border: `1px solid ${lastFulfillmentResult.success ? '#bfdbfe' : '#fecaca'}`
+                        border: '1px solid #bfdbfe'
                     }}
                 >
-                    <Box gap="8px" direction="vertical">
-                        <Text size="small" weight="bold">
-                            {lastFulfillmentResult.emailInfo.emailSentAutomatically ? '✅ Email Status' : '⚠️ Email Status'}
-                        </Text>
-                        <Text size="tiny">
-                            {lastFulfillmentResult.emailInfo.note}
-                        </Text>
-                        {lastFulfillmentResult.emailInfo.customerEmail && (
-                            <Text size="tiny">
-                                Customer: {lastFulfillmentResult.emailInfo.customerEmail}
-                            </Text>
-                        )}
-                    </Box>
+                    <Text size="tiny">
+                        {emailNoteMessage}
+                    </Text>
                 </Box>
             )}
 
@@ -265,7 +261,7 @@ export const FulfillmentForm: React.FC = observer(() => {
                 <Button
                     onClick={handleFulfillOrder}
                     disabled={submitting || !trackingNumber || !selectedCarrier}
-                    prefixIcon={submitting ? <Loader size="tiny" /> : <Icons.Package />}
+                    suffixIcon={submitting ? <Loader size="tiny" /> : <Icons.Package />}
                     fullWidth
                 >
                     {submitting

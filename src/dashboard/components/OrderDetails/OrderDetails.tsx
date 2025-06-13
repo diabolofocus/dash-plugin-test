@@ -1,7 +1,7 @@
 // components/OrderDetails/OrderDetails.tsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
-import { Card, Box, Text, Heading } from '@wix/design-system';
+import { Card, Box, Text, Heading, Tabs } from '@wix/design-system';
 import * as Icons from '@wix/wix-ui-icons-common';
 import { useStores } from '../../hooks/useStores';
 import { useOrderController } from '../../hooks/useOrderController';
@@ -21,10 +21,19 @@ import { dashboard } from '@wix/dashboard';
 import { pages } from '@wix/ecom/dashboard';
 import type { Order } from '../../types/Order';
 
+
 export const OrderDetails: React.FC = observer(() => {
     const { orderStore } = useStores();
     const orderController = useOrderController();
     const { selectedOrder } = orderStore;
+    const [activeTabId, setActiveTabId] = useState<string | number>(1);
+
+    // Reset to Order Details tab when a new order is selected
+    useEffect(() => {
+        if (selectedOrder) {
+            setActiveTabId(1);
+        }
+    }, [selectedOrder?._id]); // Dependency on order ID to trigger when order changes
 
     if (!selectedOrder) {
         return (
@@ -81,7 +90,12 @@ export const OrderDetails: React.FC = observer(() => {
         }
     };
 
-    return (
+    const tabItems = [
+        { id: 1, title: 'Order Details' },
+        { id: 2, title: 'Fulfillment' }
+    ];
+
+    const renderOrderDetailsTab = () => (
         <Box gap="16px" direction="vertical">
             {/* Main Order Information Card */}
             <Card>
@@ -163,9 +177,49 @@ export const OrderDetails: React.FC = observer(() => {
                     </Card.Content>
                 </Card>
             )}
+        </Box>
+    );
 
+    const renderFulfillmentTab = () => (
+        <Box gap="16px" direction="vertical">
             {/* Fulfillment & Shipping Information Card */}
             <Card>
+                {/* Order Header */}
+                <Card.Header
+                    title={
+                        <Box direction="horizontal" align="left" gap="16px">
+                            <Heading
+                                size="medium"
+                                weight="bold"
+                                onClick={handleOrderLinkClick}
+                                style={{
+                                    cursor: 'pointer',
+                                    color: '#3b82f6',
+                                    textDecoration: 'none',
+                                    flex: 1
+                                }}
+                            >
+                                Order #{selectedOrder.number}
+                            </Heading>
+                            <Icons.ExternalLink
+                                size="22px"
+                                style={{ color: '#3b82f6', cursor: 'pointer', marginLeft: 'auto' }}
+                                onClick={handleOrderLinkClick}
+                            />
+                        </Box>
+                    }
+                    subtitle={
+                        <Box direction="vertical" gap="8px">
+                            <Text size="small">{formatDate(selectedOrder._createdDate)}</Text>
+                            <Box direction="horizontal" gap="8px" align="left">
+                                <StatusBadge status={selectedOrder.paymentStatus} type="payment" />
+                                <StatusBadge status={selectedOrder.status} type="order" />
+                            </Box>
+                        </Box>
+                    }
+                />
+                <Card.Divider />
+
                 <Card.Content>
                     <Box gap="24px" direction="vertical">
                         {/* Shipping Information */}
@@ -193,6 +247,22 @@ export const OrderDetails: React.FC = observer(() => {
                     <OrderActivity order={selectedOrder} />
                 </Card.Content>
             </Card>
+        </Box>
+    );
+
+    return (
+        <Box gap="16px" direction="vertical">
+            {/* Tabs */}
+            <Tabs
+                items={tabItems}
+                type="compactSide"
+                activeId={activeTabId}
+                onClick={(tab) => setActiveTabId(tab.id as number)}
+            />
+
+            {/* Tab Content */}
+            {activeTabId === 1 && renderOrderDetailsTab()}
+            {activeTabId === 2 && renderFulfillmentTab()}
         </Box>
     );
 });

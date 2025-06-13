@@ -1,4 +1,4 @@
-// src/backend/orders-api.web.ts - SIMPLIFIED with email checkbox support
+// src/backend/orders-api.web.ts - UPDATED with tracking update detection
 
 import { webMethod, Permissions } from '@wix/web-methods';
 
@@ -12,6 +12,7 @@ interface EmailInfo {
   emailSent?: boolean;
   customerEmail?: string;
   note: string;
+  isTrackingUpdate?: boolean; // NEW: Flag to indicate if this is a tracking update
 }
 
 export const fulfillOrderInWix = webMethod(
@@ -36,51 +37,66 @@ export const fulfillOrderInWix = webMethod(
     });
 
     try {
-      // Use the smart elevated fulfillment method
+      // 🔥 NEW: Check if this order is already fulfilled (tracking update scenario)
+      let isTrackingUpdate = false;
+      try {
+        const { getSingleOrder } = await import('./orders-api.web');
+        const orderResult = await getSingleOrder(orderId);
+
+        if (orderResult.success && orderResult.order) {
+          // If order status is already FULFILLED, this is a tracking update
+          isTrackingUpdate = orderResult.order.status === 'FULFILLED';
+          console.log(`📋 Order ${orderNumber} status check: ${orderResult.order.status}, isTrackingUpdate: ${isTrackingUpdate}`);
+        }
+      } catch (statusCheckError) {
+        console.warn('Could not check order status before fulfillment:', statusCheckError);
+      }
+
+      // 🔥 UPDATED: Pass sendShippingEmail to the elevated method
       const result = await smartFulfillOrderElevated({
         orderId,
         trackingNumber,
         shippingProvider,
-        orderNumber
+        orderNumber,
+        sendShippingEmail // Pass the email preference to control actual email sending
       });
 
       console.log(`✅ FRONTEND: fulfillOrderInWix completed for order ${orderNumber}:`, {
         success: result.success,
         method: result.method || 'smartFulfillOrderElevated',
         message: result.message,
-        emailRequested: sendShippingEmail
+        emailRequested: sendShippingEmail,
+        isTrackingUpdate
       });
 
-      // 🔥 FIXED: Proper email info with correct typing
+      // 🔥 UPDATED: Different email messages based on whether this is a tracking update
       const emailInfo: EmailInfo = {
         emailRequested: sendShippingEmail,
-        emailSentAutomatically: false,
-        note: 'Email sending was disabled by user choice'
+        emailSentAutomatically: sendShippingEmail, // Only if requested
+        isTrackingUpdate,
+        note: sendShippingEmail
+          ? 'Shipping confirmation sent automatically by Wix (if checkout email settings are enabled for third party apps)'
+          : 'Shipping confirmation email was not sent'
       };
 
-      // Check if fulfillment was successful and email was requested
+      // Only try to get customer email if email was requested and successful
       if (result.success && sendShippingEmail) {
-        // Try to get customer email for better reporting
         try {
           const { getSingleOrder } = await import('./orders-api.web');
           const orderResult = await getSingleOrder(orderId);
 
           if (orderResult.success && orderResult.order) {
             emailInfo.customerEmail = orderResult.order.customer.email;
-            emailInfo.emailSentAutomatically = true; // Wix should auto-send if enabled
-            emailInfo.note = `Wix should automatically send shipping confirmation to ${orderResult.order.customer.email} (if dashboard email settings are enabled)`;
-          } else {
-            emailInfo.note = 'Fulfillment successful, but could not retrieve customer email for confirmation';
           }
         } catch (emailError) {
           console.error('Could not get customer details for email confirmation:', emailError);
-          emailInfo.note = 'Fulfillment successful, email status unknown - check dashboard email settings';
         }
       }
 
       return {
         ...result,
-        emailInfo
+        emailInfo,
+        isTrackingUpdate // Include this in the response for frontend to show appropriate messages
       };
 
     } catch (error: unknown) {
@@ -108,7 +124,7 @@ export const testOrdersConnection = webMethod(
   async ({ limit = 3, cursor = '' }: { limit?: number; cursor?: string } = {}) => {
     const maxRetries = 3;
     let lastError: any;
-    3
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log(`🚀 Attempt ${attempt}/${maxRetries} - Starting testOrdersConnection`);
