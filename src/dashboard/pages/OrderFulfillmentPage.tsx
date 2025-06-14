@@ -6,38 +6,36 @@ import '@wix/design-system/styles.global.css';
 
 import { useStores } from '../hooks/useStores';
 import { useOrderController } from '../hooks/useOrderController';
-import { LoadingScreen } from './shared/LoadingScreen';
-import { ActionsBar } from './shared/ActionsBar';
-import { ConnectionStatus } from './shared/ConnectionStatus';
-import { OrdersTableWithTabs } from './OrdersTable/OrdersTableWithTabs'; // Updated import
-import { OrderDetails } from './OrderDetails/OrderDetails';
+import { LoadingScreen } from '../components/shared/LoadingScreen';
+import { ActionsBar } from '../components/shared/ActionsBar';
+import { ConnectionStatus } from '../components/shared/ConnectionStatus';
+import { OrdersTableWithTabs } from '../components/OrdersTable/OrdersTableWithTabs';
+import { OrderDetails } from '../components/OrderDetails/OrderDetails';
 
 export const OrderFulfillmentPage: React.FC = observer(() => {
   const { orderStore, uiStore } = useStores();
   const orderController = useOrderController();
 
   useEffect(() => {
-    console.log('OrderFulfillmentPage: Loading orders...');
-
     const initializeData = async () => {
       await orderController.loadOrders();
-      await orderController.loadAnalyticsForPeriod('30days'); // Load 30-day analytics
+      await orderController.loadAnalyticsForPeriod('30days');
     };
 
     initializeData();
   }, [orderController]);
 
+  // Get real-time status directly from orderController
+  const realtimeStatus = orderController.getRealtimeStatus();
+
   if (uiStore.loading) {
-    console.log('OrderFulfillmentPage: Showing loading screen');
     return <LoadingScreen />;
   }
 
   return (
     <WixDesignSystemProvider features={{ newColorsBranding: true }}>
-      {/* Add inline styles to ensure proper rendering */}
       <style>
         {`
-          /* Ensure Wix Design System styles are applied */
           .wix-design-system {
             font-family: HelveticaNeueW01-45Ligh, HelveticaNeueW02-45Ligh, HelveticaNeueW10-45Ligh, Helvetica Neue, Helvetica, Arial, sans-serif;
           }
@@ -81,7 +79,6 @@ export const OrderFulfillmentPage: React.FC = observer(() => {
             border-color: #CCCCCC !important;
           }
 
-          /* Debug styles to see if components are loading */
           .wix-page-header {
             background-color: #ffffff;
             border-bottom: 1px solid #e5e7eb;
@@ -94,7 +91,6 @@ export const OrderFulfillmentPage: React.FC = observer(() => {
             background-color: #f8f9fa;
           }
 
-          /* FIXED: Force sticky column height and scrolling */
           .sticky-order-details {
             position: sticky !important;
             top: 85px !important;
@@ -107,34 +103,44 @@ export const OrderFulfillmentPage: React.FC = observer(() => {
             align-self: flex-start !important;
             border-radius: 8px;
             
-            scrollbar-width: none !important; /* Firefox */
-            -ms-overflow-style: none !important; /* Internet Explorer 10+ */
+            scrollbar-width: none !important;
+            -ms-overflow-style: none !important;
           }
 
-          /* Ensure the main content container has proper height */
           .main-content-container {
             min-height: calc(100vh - 226px) !important;
           }
 
-          /* Make sure the horizontal container doesn't interfere */
           .horizontal-container {
             align-items: flex-start !important;
             min-height: calc(100vh - 226px) !important;
           }
 
-          /* Ensure OrdersTable maintains horizontal scroll */
           .orders-table-container {
             width: 100%;
             overflow-x: auto;
             min-width: 0;
           }
 
-          /* Force table to maintain its scroll behavior */
           .orders-table-container table {
             min-width: max-content;
           }
 
-          /* Responsive grid adjustments */
+          /* Simple real-time status indicator */
+          .realtime-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            color: white;
+            background-color: ${realtimeStatus?.isListening ? '#00C42B' : '#E23B2C'};
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+          }
+
           @media (max-width: 1200px) {
             .main-grid-container {
               grid-template-columns: 1fr 350px !important;
@@ -166,18 +172,18 @@ export const OrderFulfillmentPage: React.FC = observer(() => {
             {/* Connection Status Row */}
             <ConnectionStatus />
 
-            {/* Two-thirds layout with sidebar - both sticky */}
+            {/* Two-thirds layout with sidebar */}
             <div className="main-grid-container" style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 400px', // Fixed width for details panel
+              gridTemplateColumns: '1fr 400px',
               gap: '24px',
               flex: 1,
-              minHeight: 0, // Important for proper scrolling
+              minHeight: 0,
               alignItems: 'start'
             }}>
               <div style={{
-                minWidth: 0, // Important for table overflow
-                overflow: 'hidden' // Ensures table handles its own overflow
+                minWidth: 0,
+                overflow: 'hidden'
               }}>
                 <Page.Sticky>
                   <OrdersTableWithTabs />
@@ -185,7 +191,7 @@ export const OrderFulfillmentPage: React.FC = observer(() => {
               </div>
 
               <div style={{
-                minWidth: '400px', // Ensure details panel doesn't shrink too much
+                minWidth: '400px',
                 maxWidth: '400px'
               }}>
                 <Page.Sticky>

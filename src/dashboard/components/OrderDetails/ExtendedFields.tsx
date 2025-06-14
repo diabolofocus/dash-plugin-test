@@ -1,6 +1,7 @@
-// components/OrderDetails/ExtendedFields.tsx
+// components/OrderDetails/ExtendedFields.tsx - SIMPLE VERSION
 import React from 'react';
-import { Box, Text, Heading, Card } from '@wix/design-system';
+import { Box, Text } from '@wix/design-system';
+import { useOrderController } from '../../hooks/useOrderController';
 import type { Order } from '../../types/Order';
 
 interface ExtendedFieldsProps {
@@ -8,9 +9,34 @@ interface ExtendedFieldsProps {
 }
 
 const getExtendedFieldsData = (order: Order) => {
-    // Try to get extended fields from different possible locations
-    const customFields = order.customFields || order.rawOrder?.customFields || [];
-    const extendedFields = order.extendedFields || order.rawOrder?.extendedFields || {};
+    console.log('🔍 Raw Order Data:', {
+        orderCustomFields: order.customFields,
+        rawOrderCustomFields: order.rawOrder?.customFields,
+        orderExtendedFields: order.extendedFields,
+        rawOrderExtendedFields: order.rawOrder?.extendedFields
+    });
+
+    // Try to get custom fields from different possible locations
+    let customFields = null;
+
+    // Check for array-style custom fields first (ecom orders structure)
+    if (Array.isArray(order.customFields) && order.customFields.length > 0) {
+        customFields = order.customFields;
+        console.log('📋 Found customFields in order.customFields (array):', customFields);
+    } else if (Array.isArray(order.rawOrder?.customFields) && order.rawOrder.customFields.length > 0) {
+        customFields = order.rawOrder.customFields;
+        console.log('📋 Found customFields in order.rawOrder.customFields (array):', customFields);
+    }
+
+    // Get extended fields - focus on namespaces structure
+    let extendedFields = null;
+    if (order.extendedFields?.namespaces) {
+        extendedFields = order.extendedFields;
+        console.log('🔧 Found extendedFields in order.extendedFields:', extendedFields);
+    } else if (order.rawOrder?.extendedFields?.namespaces) {
+        extendedFields = order.rawOrder.extendedFields;
+        console.log('🔧 Found extendedFields in order.rawOrder.extendedFields:', extendedFields);
+    }
 
     return {
         customFields,
@@ -18,74 +44,207 @@ const getExtendedFieldsData = (order: Order) => {
     };
 };
 
+// Simple static mapping for your field names - UPDATE THIS WITH YOUR FIELDS
+const getFieldDisplayName = (fieldKey: string): string => {
+    // Add your known field mappings here
+    const fieldNameMappings: Record<string, string> = {
+        'form_field_e391': 'Invoice',
+        'form_field_e392': 'Delivery Notes',
+        'form_field_e393': 'Special Instructions',
+        // Add more mappings as you discover them from console logs
+    };
+
+    if (fieldNameMappings[fieldKey]) {
+        return fieldNameMappings[fieldKey];
+    }
+
+    // Fallback: Convert field key to readable format
+    return fieldKey
+        .replace(/^form_field_/i, '')
+        .replace(/_/g, ' ')
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/\b\w/g, l => l.toUpperCase());
+};
+
+// Function to translate values to user-friendly format
+const translateFieldValue = (value: any, fieldKey?: string): string => {
+    if (value === null || value === undefined) {
+        return 'N/A';
+    }
+
+    // Handle boolean values - THIS FIXES YOUR true/false ISSUE
+    if (typeof value === 'boolean') {
+        return value ? 'Yes' : 'No';
+    }
+
+    // Handle numbers
+    if (typeof value === 'number') {
+        return String(value);
+    }
+
+    // Handle dates
+    if (value instanceof Date) {
+        return value.toLocaleDateString();
+    }
+
+    // Handle strings
+    if (typeof value === 'string') {
+        return value;
+    }
+
+    // Handle objects/arrays
+    if (typeof value === 'object') {
+        return JSON.stringify(value, null, 2);
+    }
+
+    return String(value);
+};
+
 export const ExtendedFields: React.FC<ExtendedFieldsProps> = ({ order }) => {
+    const orderController = useOrderController();
     const { customFields, extendedFields } = getExtendedFieldsData(order);
 
-    // Don't render if no extended fields data exists
-    if (!customFields?.length && !extendedFields?.namespaces) {
+    console.log('🎯 Component State:', {
+        customFields: customFields,
+        extendedFields: extendedFields
+    });
+
+    // Check if we have any data to display
+    const hasArrayCustomFields = Array.isArray(customFields) && customFields.length > 0;
+    const hasExtendedFields = extendedFields?.namespaces && Object.keys(extendedFields.namespaces).length > 0;
+
+    // Don't render if no data exists
+    if (!hasArrayCustomFields && !hasExtendedFields) {
+        console.log('❌ Not rendering - no data found');
         return null;
     }
 
+    console.log('✅ Rendering component with data');
+
+    const handleCustomFieldClick = (fieldName: string, fieldValue: any) => {
+        const translatedValue = translateFieldValue(fieldValue);
+        orderController.copyToClipboard(translatedValue, fieldName);
+    };
+
+    const handleArrayCustomFieldClick = (field: any) => {
+        const fieldTitle = field.translatedTitle || field.title || 'Custom Field';
+        let displayValue = '';
+
+        if (field.value?.stringValue !== undefined) {
+            displayValue = field.value.stringValue;
+        } else if (field.value?.numberValue !== undefined) {
+            displayValue = String(field.value.numberValue);
+        } else if (field.value?.booleanValue !== undefined) {
+            displayValue = field.value.booleanValue ? 'Yes' : 'No';
+        } else if (field.value?.dateValue !== undefined) {
+            displayValue = field.value.dateValue;
+        } else {
+            displayValue = translateFieldValue(field.value);
+        }
+
+        orderController.copyToClipboard(displayValue, fieldTitle);
+    };
+
     return (
-        <Card>
-            <Card.Content>
-                <Box direction="vertical" gap="16px" paddingTop="20px" paddingBottom="20px" paddingLeft="20px" paddingRight="20px">
-                    <Heading size="small">Extended Fields</Heading>
+        <Box gap="8px" direction="vertical">
+            <Text size="small" className="section-title">Additional Info:</Text>
 
-                    {/* Custom Fields */}
-                    {customFields && customFields.length > 0 && (
-                        <Box direction="vertical" gap="12px">
-                            <Text size="small" weight="bold" secondary>Custom Fields</Text>
-                            {customFields.map((field, index) => (
-                                <Box key={index} direction="horizontal" align="center" style={{ justifyContent: 'space-between', width: '100%' }}>
-                                    <Text size="small" secondary>
-                                        {field.translatedTitle || field.title}:
-                                    </Text>
-                                    <Text size="small" weight="normal">
-                                        {typeof field.value === 'object'
-                                            ? JSON.stringify(field.value)
-                                            : String(field.value)
-                                        }
-                                    </Text>
-                                </Box>
-                            ))}
-                        </Box>
-                    )}
+            {/* Array-style Custom Fields (ecom orders structure) */}
+            {hasArrayCustomFields && (
+                <Box gap="8px" direction="vertical">
+                    {customFields.map((field: any, index: number) => {
+                        console.log(`📋 Processing array field ${index}:`, field);
 
-                    {/* Extended Fields Namespaces */}
-                    {extendedFields?.namespaces && Object.keys(extendedFields.namespaces).length > 0 && (
-                        <Box direction="vertical" gap="12px">
-                            <Text size="small" weight="bold" secondary>Extended Fields</Text>
-                            {Object.entries(extendedFields.namespaces).map(([namespace, fields]) => (
-                                <Box key={namespace} direction="vertical" gap="8px">
-                                    <Text size="tiny" secondary style={{ textTransform: 'uppercase' }}>
-                                        {namespace}
-                                    </Text>
-                                    {Object.entries(fields).map(([fieldKey, fieldValue]) => (
-                                        <Box
-                                            key={fieldKey}
-                                            direction="horizontal"
-                                            align="center"
-                                            paddingLeft="12px"
-                                            style={{ justifyContent: 'space-between', width: '100%' }}
-                                        >
-                                            <Text size="small" secondary>
-                                                {fieldKey}:
-                                            </Text>
-                                            <Text size="small" weight="normal">
-                                                {typeof fieldValue === 'object'
-                                                    ? JSON.stringify(fieldValue)
-                                                    : String(fieldValue)
-                                                }
-                                            </Text>
-                                        </Box>
-                                    ))}
-                                </Box>
-                            ))}
-                        </Box>
-                    )}
+                        const fieldTitle = field.translatedTitle || field.title || `Field ${index + 1}`;
+
+                        let displayValue = '';
+                        if (field.value?.stringValue !== undefined) {
+                            displayValue = field.value.stringValue;
+                        } else if (field.value?.numberValue !== undefined) {
+                            displayValue = String(field.value.numberValue);
+                        } else if (field.value?.booleanValue !== undefined) {
+                            displayValue = field.value.booleanValue ? 'Yes' : 'No';
+                        } else if (field.value?.dateValue !== undefined) {
+                            displayValue = field.value.dateValue;
+                        } else {
+                            displayValue = translateFieldValue(field.value);
+                        }
+
+                        return (
+                            <Box key={`custom-field-${index}`} gap="4px" direction="vertical">
+                                {/* <Text size="tiny" secondary weight="bold">
+                                    {fieldTitle}:
+                                </Text> */}
+                                <Text
+                                    size="small"
+                                    className="clickable-info"
+                                    onClick={() => handleArrayCustomFieldClick(field)}
+                                    style={{
+                                        paddingLeft: '8px',
+                                        borderLeft: '2px solid #3b82f6',
+                                        whiteSpace: 'pre-wrap',
+                                        wordBreak: 'break-word',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    {displayValue}
+                                </Text>
+                            </Box>
+                        );
+                    })}
                 </Box>
-            </Card.Content>
-        </Card>
+            )}
+
+            {/* Extended Fields Namespaces */}
+            {hasExtendedFields && (
+                <Box direction="vertical" gap="8px">
+                    {Object.entries(extendedFields.namespaces).map(([namespace, fields]) => {
+                        console.log(`🔧 Processing namespace "${namespace}":`, fields);
+
+                        return (
+                            <Box key={namespace} direction="vertical" gap="6px">
+                                {typeof fields === 'object' && fields !== null && (
+                                    <Box direction="vertical" gap="4px" paddingLeft="12px">
+                                        {Object.entries(fields).map(([fieldKey, fieldValue]) => {
+                                            console.log(`🔧 Processing field "${fieldKey}":`, fieldValue);
+
+                                            // Use static mapping for field name
+                                            const displayName = getFieldDisplayName(fieldKey);
+
+                                            // Get the translated field value
+                                            const translatedValue = translateFieldValue(fieldValue, fieldKey);
+
+                                            console.log(`🔧 Final field "${fieldKey}" - Name: "${displayName}", Value: "${translatedValue}"`);
+
+                                            return (
+                                                <Box key={fieldKey} direction="vertical" gap="2px">
+                                                    <Text size="tiny" secondary weight="bold">
+                                                        {displayName}:
+                                                    </Text>
+                                                    <Text
+                                                        size="small"
+                                                        className="clickable-info"
+                                                        onClick={() => handleCustomFieldClick(displayName, fieldValue)}
+                                                        style={{
+                                                            paddingLeft: '8px',
+                                                            borderLeft: '2px solid #3b82f6',
+                                                            whiteSpace: 'pre-wrap',
+                                                            wordBreak: 'break-word',
+                                                            cursor: 'pointer'
+                                                        }}
+                                                    >
+                                                        {translatedValue}
+                                                    </Text>
+                                                </Box>
+                                            );
+                                        })}
+                                    </Box>
+                                )}
+                            </Box>
+                        );
+                    })}
+                </Box>
+            )}
+        </Box>
     );
 };

@@ -1,21 +1,29 @@
-// controllers/OrderController.ts - COMPLETE with Advanced Search
+// controllers/OrderController.ts - COMPLETE with Simple Real-time Features
 import { AnalyticsService } from '../services/AnalyticsService';
 import { AdvancedSearchService, type SearchFilters, type SearchResult } from '../services/AdvancedSearchService';
+import { RealtimeOrderService } from '../services/RealtimeOrderService';
 import { dashboard } from '@wix/dashboard';
 import type { OrderStore } from '../stores/OrderStore';
 import { getCurrentSiteId } from '../utils/get-siteId';
 import type { UIStore } from '../stores/UIStore';
 import type { OrderService } from '../services/OrderService';
-import type { Order, FulfillOrderParams } from '../types/Order';
+import type { Order, FulfillOrderParams, OrderStatus } from '../types/Order';
 import { DEMO_ORDERS } from '../utils/constants';
 import { getSiteIdFromContext, debugSiteIdSources } from '../utils/get-siteId';
 import { mapWixOrder } from '../../backend/utils/order-mapper';
 
 export class OrderController {
     private advancedSearchService: AdvancedSearchService;
+    private realtimeService: RealtimeOrderService;
     private searchTimeout: number | null = null;
     private currentSearchQuery: string = '';
     private lastSearchResult: SearchResult | null = null;
+    private analyticsRefreshTimeout: number | null = null;
+
+    private realtimeInitialized: boolean = false;
+
+    private isFilterMode: boolean = false;
+    private currentStatusFilter: string | null = null;
 
     constructor(
         private orderStore: OrderStore,
@@ -23,6 +31,102 @@ export class OrderController {
         private orderService: OrderService
     ) {
         this.advancedSearchService = new AdvancedSearchService();
+
+        this.realtimeService = new RealtimeOrderService();
+        this.initializeRealtimeUpdates();
+    }
+
+    // === SIMPLIFIED REAL-TIME METHODS ===
+
+    /**
+     * AUTO-START: Initialize real-time updates automatically
+     */
+    private async initializeRealtimeUpdates() {
+        if (this.realtimeInitialized) {
+            return;
+        }
+
+        this.realtimeInitialized = true;
+
+        this.realtimeService.onNewOrder((newOrder: Order) => {
+            this.handleNewOrder(newOrder);
+        });
+
+        // Service auto-starts polling in constructor
+    }
+
+    // Add this to your OrderController.ts in the handleNewOrder method:
+
+    // In OrderController.ts - Remove sound from handleNewOrder:
+
+    /**
+     * ✅ FIXED: Handle new order WITHOUT playing sound (sound is handled by RealtimeOrderService)
+     */
+    private handleNewOrder(newOrder: Order) {
+        try {
+            // Check if order already exists in store
+            const existingOrder = this.orderStore.getOrderById(newOrder._id);
+            if (existingOrder) {
+                return;
+            }
+
+            // Add to store
+            this.orderStore.addNewOrder(newOrder);
+
+            // Show toast notification
+            this.showToast(`🆕 New order #${newOrder.number} received!`, 'success');
+
+            // Auto-select if no order is currently selected
+            if (!this.orderStore.selectedOrder) {
+                this.orderStore.selectOrder(newOrder);
+            }
+
+            // Refresh analytics
+            this.refreshAnalyticsIfNeeded();
+
+        } catch (error) {
+            // Error handling new order
+        }
+    }
+
+    /**
+     * Refresh analytics if auto-refresh is enabled
+     */
+    private refreshAnalyticsIfNeeded() {
+        // Only refresh if we're on a current period that would include new orders
+        const currentPeriod = this.orderStore.selectedAnalyticsPeriod;
+        const shouldRefresh = ['today', '7days', '30days', 'thisweek', 'thismonth'].includes(currentPeriod);
+
+        if (shouldRefresh) {
+            // Debounce analytics refresh to avoid too many calls
+            if (this.analyticsRefreshTimeout) {
+                clearTimeout(this.analyticsRefreshTimeout);
+            }
+            this.analyticsRefreshTimeout = setTimeout(() => {
+                this.loadAnalyticsForPeriod(currentPeriod as any);
+            }, 2000) as any;
+        }
+    }
+
+    /**
+     * Test the notification system
+     */
+    async testNotifications(): Promise<void> {
+        this.realtimeService.testSound();
+    }
+
+    /**
+     * Configure notification settings (simplified)
+     */
+    updateNotificationSettings(settings: { soundEnabled?: boolean }): void {
+        // In the simplified version, sound is always enabled
+    }
+
+    /**
+     * Get real-time service status
+     */
+    getRealtimeStatus() {
+        return this.realtimeService.getStatus();
     }
 
     // === SEARCH METHODS ===
@@ -58,8 +162,6 @@ export class OrderController {
                 limit: 100
             };
 
-            console.log(`🔍 Starting advanced search for: "${trimmedQuery}"`);
-
             const searchResult = await this.advancedSearchService.performAdvancedSearch(
                 trimmedQuery,
                 this.orderStore.orders, // Pass currently loaded orders
@@ -73,8 +175,6 @@ export class OrderController {
             }
 
         } catch (error) {
-            console.error('❌ Advanced search failed:', error);
-
             // Fallback to basic search on loaded orders
             this.performBasicSearch(trimmedQuery);
 
@@ -168,15 +268,19 @@ export class OrderController {
         try {
             this.uiStore.setLoadingMore(true);
 
-            // Build filters for the next page
             const filters: SearchFilters = {
                 query: this.currentSearchQuery,
                 limit: 100
             };
 
-            // Perform API search with cursor for next page
             const { orders } = await import('@wix/ecom');
-            const apiFilters = this.buildApiFiltersForQuery(this.currentSearchQuery, filters);
+            const searchFilters: SearchFilters = {
+                query: this.currentSearchQuery,
+                limit: 100
+            };
+
+            // FIX: Add await here since buildApiFilters is now async
+            const apiFilters = await this.advancedSearchService.buildApiFilters(this.currentSearchQuery, searchFilters);
 
             const searchParams = {
                 filter: apiFilters,
@@ -208,31 +312,22 @@ export class OrderController {
             }
 
         } catch (error) {
-            console.error('❌ Failed to load more search results:', error);
             this.showToast('Failed to load more results', 'error');
         } finally {
             this.uiStore.setLoadingMore(false);
         }
     }
 
-    // ADD these methods to OrderController class:
-
     /**
      * Perform status-based filtering on full dataset
      */
-    private isFilterMode: boolean = false;
-    private currentStatusFilter: string | null = null;
     async performStatusFilter(statusFilter: string): Promise<void> {
         this.isFilterMode = true;
         this.currentStatusFilter = statusFilter;
+
         try {
-
-
             const apiFilters = this.buildStatusApiFilters(statusFilter);
 
-            console.log(`🔍 Filtering orders by status: ${statusFilter}`);
-
-            // Import the orders API
             const { orders } = await import('@wix/ecom');
 
             const searchParams = {
@@ -252,15 +347,11 @@ export class OrderController {
                 this.orderStore.setOrders(filteredOrders);
                 this.orderStore.setHasMoreOrders(result.metadata?.hasNext || false);
                 this.orderStore.setNextCursor(result.metadata?.cursors?.next || '');
-
-                console.log(`✅ Status filter applied: ${filteredOrders.length} orders found`);
             }
 
         } catch (error) {
-            console.error('❌ Status filtering failed:', error);
             this.showToast('Failed to apply status filter', 'error');
-        } finally {
-
+            throw error; // Re-throw for UI handling
         }
     }
 
@@ -326,40 +417,6 @@ export class OrderController {
     }
 
     /**
-     * Helper to build API filters (extracted from AdvancedSearchService)
-     */
-    private buildApiFiltersForQuery(query: string, filters: SearchFilters): Record<string, any> {
-        const apiFilters: Record<string, any> = {
-            status: { $ne: "INITIALIZED" }
-        };
-
-        if (!query.trim()) return apiFilters;
-
-        const searchTerm = query.trim();
-
-        if (/^\d+$/.test(searchTerm)) {
-            apiFilters.number = { $eq: parseInt(searchTerm) };
-        } else if (this.isEmail(searchTerm)) {
-            apiFilters["buyerInfo.email"] = { $eq: searchTerm };
-        } else if (searchTerm.includes('@')) {
-            apiFilters["buyerInfo.email"] = { $startsWith: searchTerm };
-        } else if (searchTerm.length >= 3) {
-            apiFilters["buyerInfo.email"] = { $startsWith: searchTerm };
-        } else if (searchTerm.length >= 2) {
-            apiFilters["lineItems.productName.original"] = { $contains: searchTerm };
-        }
-
-        return apiFilters;
-    }
-
-    /**
-     * Helper to check if string is an email
-     */
-    private isEmail(str: string): boolean {
-        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str);
-    }
-
-    /**
      * Clear search and return to all orders
      */
     clearSearch(): void {
@@ -411,8 +468,6 @@ export class OrderController {
     async loadOrders() {
         const isDev = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1');
 
-        console.log(`🚀 [${isDev ? 'DEV' : 'PROD'}] Starting chunked order loading (100 initial)...`);
-
         try {
             this.uiStore.setLoading(true);
             this.orderStore.setConnectionStatus('connecting');
@@ -434,8 +489,6 @@ export class OrderController {
                 }
             });
 
-            console.log(`📊 [${isDev ? 'DEV' : 'PROD'}] Initial chunk complete: ${result.totalCount} orders, hasMore: ${result.hasMore}`);
-
             if (result.success) {
                 this.orderStore.setOrders(result.orders);
                 this.orderStore.setHasMoreOrders(result.hasMore);
@@ -443,14 +496,11 @@ export class OrderController {
                 this.orderStore.setConnectionStatus('connected');
                 this.orderStore.setLoadingStatus('');
                 this.autoSelectOldestUnfulfilled();
-
-                console.log(`✅ [${isDev ? 'DEV' : 'PROD'}] Loaded initial ${result.totalCount} orders, can load more: ${result.hasMore}`);
             } else {
                 this.handleLoadError(new Error(result.error || 'Failed to load orders'));
             }
 
         } catch (error) {
-            console.error(`❌ [${isDev ? 'DEV' : 'PROD'}] Error in chunked loading:`, error);
             this.orderStore.setLoadingStatus('');
             this.handleLoadError(error);
         } finally {
@@ -459,23 +509,20 @@ export class OrderController {
     }
 
     /**
- * Load more orders (pagination) - supports both regular and filtered modes
- */
+     * Load more orders (pagination) - supports both regular and filtered modes
+     */
     async loadMoreOrders() {
         if (!this.orderStore.hasMoreOrders || this.orderStore.isLoadingMore) {
             return;
         }
 
         const isDev = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1');
-        console.log(`📦 [${isDev ? 'DEV' : 'PROD'}] Loading more orders... (Filter mode: ${this.isFilterMode})`);
 
         try {
             this.orderStore.setIsLoadingMore(true);
             this.orderStore.setLoadingStatus('Loading more orders...');
 
             if (this.isFilterMode && this.currentStatusFilter) {
-                // Load more filtered results using API search
-                console.log(`🔍 Loading more filtered results for: ${this.currentStatusFilter}`);
 
                 const { orders } = await import('@wix/ecom');
                 const apiFilters = this.buildStatusApiFilters(this.currentStatusFilter);
@@ -496,37 +543,26 @@ export class OrderController {
                     this.orderStore.appendOrders(newOrders);
                     this.orderStore.setHasMoreOrders(result.metadata?.hasNext || false);
                     this.orderStore.setNextCursor(result.metadata?.cursors?.next || '');
-
-                    console.log(`✅ [${isDev ? 'DEV' : 'PROD'}] Loaded ${newOrders.length} more filtered orders, total: ${this.orderStore.orders.length}`);
                 } else {
                     this.orderStore.setHasMoreOrders(false);
-                    console.log(`📭 [${isDev ? 'DEV' : 'PROD'}] No more filtered orders available`);
                 }
 
             } else {
                 // Regular load more using OrderService
-                console.log(`📦 Loading more regular orders from cursor: ${this.orderStore.nextCursor}`);
-
                 const result = await this.orderService.fetchMoreOrders(this.orderStore.nextCursor, 100);
 
                 if (result.success) {
                     this.orderStore.appendOrders(result.orders);
                     this.orderStore.setHasMoreOrders(result.hasMore);
                     this.orderStore.setNextCursor(result.nextCursor || '');
-
-                    console.log(`✅ [${isDev ? 'DEV' : 'PROD'}] Loaded ${result.orders.length} more orders, total: ${this.orderStore.orders.length}`);
                 } else {
-                    console.error(`❌ [${isDev ? 'DEV' : 'PROD'}] Failed to load more orders:`, result.error);
                     this.orderStore.setHasMoreOrders(false);
                 }
             }
 
         } catch (error) {
-            console.error(`❌ [${isDev ? 'DEV' : 'PROD'}] Error loading more orders:`, error);
             this.orderStore.setHasMoreOrders(false);
-
             // Don't show toast for load more errors to avoid spam
-            console.error('Load more failed, stopping pagination');
         } finally {
             this.orderStore.setIsLoadingMore(false);
             this.orderStore.setLoadingStatus('');
@@ -538,7 +574,6 @@ export class OrderController {
      */
     async refreshOrders() {
         const isDev = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1');
-        console.log(`🔄 [${isDev ? 'DEV' : 'PROD'}] OrderController: Starting refresh`);
 
         this.uiStore.setRefreshing(true);
         this.clearSelection();
@@ -548,12 +583,6 @@ export class OrderController {
             const result = await this.orderService.fetchOrders({
                 limit: 50,
                 cursor: undefined
-            });
-
-            console.log(`🔄 [${isDev ? 'DEV' : 'PROD'}] OrderController: Refresh response:`, {
-                success: result.success,
-                orderCount: result.orders?.length || 0,
-                hasNext: result.pagination?.hasNext
             });
 
             if (result.success && result.orders && result.orders.length > 0) {
@@ -576,7 +605,6 @@ export class OrderController {
             }
 
         } catch (error) {
-            console.error(`❌ [${isDev ? 'DEV' : 'PROD'}] OrderController: Refresh error:`, error);
             this.handleRefreshError(error);
         } finally {
             this.uiStore.setRefreshing(false);
@@ -608,50 +636,62 @@ export class OrderController {
     }
 
     /**
-     * Fulfill an order
+     * Fulfill an order with real-time feedback
      */
-    async fulfillOrder() {
-        const { selectedOrder } = this.orderStore;
-        const { trackingNumber, selectedCarrier } = this.uiStore;
+    async fulfillOrder(params?: FulfillOrderParams & { sendShippingEmail?: boolean }): Promise<void> {
+        // Use params if provided, otherwise use store state
+        let fulfillmentParams: FulfillOrderParams & { sendShippingEmail?: boolean };
 
-        if (!trackingNumber || !selectedCarrier || !selectedOrder) {
-            this.showToast('Please enter tracking number and select carrier', 'error');
-            return;
+        if (params) {
+            fulfillmentParams = params;
+        } else {
+            const { selectedOrder } = this.orderStore;
+            const { trackingNumber, selectedCarrier } = this.uiStore;
+
+            if (!trackingNumber || !selectedCarrier || !selectedOrder) {
+                this.showToast('Please enter tracking number and select carrier', 'error');
+                return;
+            }
+
+            fulfillmentParams = {
+                orderId: selectedOrder._id,
+                trackingNumber,
+                shippingProvider: selectedCarrier,
+                orderNumber: selectedOrder.number,
+                sendShippingEmail: true // Default to true for backward compatibility
+            };
         }
 
         this.uiStore.setSubmitting(true);
 
         try {
-            const fulfillmentParams: FulfillOrderParams = {
-                orderId: selectedOrder._id,
-                trackingNumber,
-                shippingProvider: selectedCarrier,
-                orderNumber: selectedOrder.number
-            };
-
             const result = await this.orderService.fulfillOrder(fulfillmentParams);
 
-            if (!result.success) {
-                throw new Error(result.message || 'Failed to fulfill order in Wix');
-            }
+            if (result.success) {
+                // Update order status immediately for instant feedback
+                this.orderStore.updateOrderStatus(fulfillmentParams.orderId, 'FULFILLED');
 
-            this.orderStore.updateOrderStatus(selectedOrder._id, 'FULFILLED');
+                // Show success notification with email info
+                let message = `Order #${fulfillmentParams.orderNumber} fulfilled successfully!`;
 
-            // 🔥 UPDATED: Include email info in success message
-            let message = selectedOrder.status === 'FULFILLED'
-                ? `Order #${selectedOrder.number} tracking updated: ${trackingNumber}`
-                : `Order #${selectedOrder.number} fulfilled with tracking: ${trackingNumber}`;
-
-            // Add email status to message if available
-            if (result.emailInfo) {
-                if (result.emailInfo.emailSentAutomatically) {
-                    message += ' • Confirmation email sent to customer';
-                } else {
-                    message += ' • No email sent';
+                if (result.emailInfo) {
+                    if (result.emailInfo.emailSentAutomatically) {
+                        message += ' • Confirmation email sent to customer';
+                    } else {
+                        message += ' • No email sent';
+                    }
                 }
-            }
 
-            this.showToast(message, 'success');
+                this.showToast(message, 'success');
+
+                // Refresh the selected order to get latest data
+                if (this.orderStore.selectedOrder?._id === fulfillmentParams.orderId) {
+                    await this.selectOrderById(fulfillmentParams.orderId);
+                }
+
+            } else {
+                throw new Error(result.error || 'Fulfillment failed');
+            }
 
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
@@ -659,6 +699,28 @@ export class OrderController {
         } finally {
             this.uiStore.resetForm();
             this.uiStore.setSubmitting(false);
+        }
+    }
+
+    /**
+     * Select an order by ID and refresh its data
+     */
+    async selectOrderById(orderId: string): Promise<void> {
+        // Quick selection from current data
+        const existingOrder = this.orderStore.getOrderById(orderId);
+        if (existingOrder) {
+            this.orderStore.selectOrder(existingOrder);
+        }
+
+        // Fetch fresh data in background
+        try {
+            const result = await this.orderService.fetchSingleOrder(orderId);
+            if (result.success && result.order) {
+                this.orderStore.updateOrder(result.order);
+                this.orderStore.selectOrder(result.order);
+            }
+        } catch (error) {
+            // Failed to refresh selected order
         }
     }
 
@@ -888,7 +950,7 @@ export class OrderController {
     async copyToClipboard(text: string, label: string) {
         try {
             await navigator.clipboard.writeText(text);
-            // this.showToast(`${label} copied to clipboard`, 'success');
+            this.showToast(`${label} copied to clipboard`, 'success');
         } catch (error) {
             this.showToast('Failed to copy to clipboard', 'error');
         }
@@ -900,7 +962,6 @@ export class OrderController {
     private autoSelectOldestUnfulfilled() {
         const oldestUnfulfilled = this.orderStore.oldestUnfulfilledOrder;
         if (oldestUnfulfilled && !this.orderStore.selectedOrder) {
-            console.log(`🎯 Auto-selecting oldest unfulfilled order: #${oldestUnfulfilled.number}`);
             this.selectOrder(oldestUnfulfilled);
         }
     }
@@ -932,7 +993,7 @@ export class OrderController {
         this.orderStore.setOrders(DEMO_ORDERS as any);
         this.orderStore.setConnectionStatus('error');
 
-        // 🔥 FIXED: Set proper pagination for demo data
+        // Set proper pagination for demo data
         this.orderStore.setPagination({
             hasNext: false,
             nextCursor: '',
@@ -943,9 +1004,42 @@ export class OrderController {
     }
 
     /**
-     * Show toast notification
+     * Show toast notification with fallback to console
      */
     private showToast(message: string, type: 'success' | 'error' | 'warning') {
-        dashboard.showToast({ message, type });
+        try {
+            dashboard.showToast({ message, type });
+        } catch (error) {
+            // Fallback to console if dashboard toast fails
+        }
+    }
+
+    /**
+     * Refresh all data
+     */
+    async refreshData(): Promise<void> {
+        await Promise.all([
+            this.loadOrders(),
+            this.loadAnalyticsForPeriod(this.orderStore.selectedAnalyticsPeriod as any)
+        ]);
+    }
+
+    /**
+     * Cleanup when component unmounts
+     */
+    destroy(): void {
+        // Clear timeouts
+        if (this.analyticsRefreshTimeout) {
+            clearTimeout(this.analyticsRefreshTimeout);
+        }
+
+        if (this.searchTimeout) {
+            clearTimeout(this.searchTimeout);
+        }
+
+        // Clear search state
+        this.clearSearch();
+
+        // Real-time service cleanup (if needed in future)
     }
 }

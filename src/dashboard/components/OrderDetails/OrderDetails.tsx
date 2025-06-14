@@ -15,7 +15,7 @@ import { StatusBadge } from '../shared/StatusBadge';
 import { BillingInfo } from './BillingInfo'; // Use existing BillingInfo component
 import { BillingAddress } from './BillingAddress'; // New BillingAddress component
 import { ExtendedFields } from './ExtendedFields';
-import { CustomAndExtendedFields } from './CustomAndExtendedFields';
+// import { CustomAndExtendedFields } from './CustomAndExtendedFields';
 import { TrackingNumberDisplay } from './TrackingNumberDisplay';
 import { dashboard } from '@wix/dashboard';
 import { pages } from '@wix/ecom/dashboard';
@@ -150,8 +150,11 @@ export const OrderDetails: React.FC = observer(() => {
                         {/* Billing Address Section */}
                         <BillingAddress order={selectedOrder} />
 
+                        {/* Additional Info Section - NEW */}
+                        <ExtendedFields order={selectedOrder} />
+
                         {/* Custom Fields and Extended Fields Section */}
-                        <CustomAndExtendedFields order={selectedOrder} />
+                        {/* <CustomAndExtendedFields order={selectedOrder} /> */}
 
                         <Card.Divider />
 

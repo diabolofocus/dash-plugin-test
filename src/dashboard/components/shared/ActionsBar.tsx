@@ -1,69 +1,140 @@
 // components/shared/ActionsBar.tsx
 import React from 'react';
 import { observer } from 'mobx-react-lite';
-import { Button, Loader, Box } from '@wix/design-system';
+import {
+    Box,
+    Button,
+    PopoverMenu,
+    IconButton,
+    Text
+} from '@wix/design-system';
 import * as Icons from '@wix/wix-ui-icons-common';
 import { dashboard } from '@wix/dashboard';
 import { pages } from '@wix/ecom/dashboard';
 import { useStores } from '../../hooks/useStores';
 import { useOrderController } from '../../hooks/useOrderController';
 
+export const ActionsBar: React.FC = observer(() => {
+    const { orderStore, uiStore } = useStores();
+    const orderController = useOrderController();
 
-const AddNewOrderButton: React.FC = () => {
-
-    const handleAddNewOrder = async () => {
+    const handleRefresh = async () => {
         try {
-
-            await dashboard.navigate(
-                pages.newOrder(),
-                {
-                    displayMode: "overlay"
-                }
-            );
-
+            await orderController.refreshOrders();
         } catch (error) {
-            console.error('Error navigating to new order page:', error);
+            // Refresh error already handled in controller
+        }
+    };
+
+    const handleAddNewOrder = () => {
+        // Navigate to Wix's ecommerce new order page using the proper dashboard method
+        dashboard.navigate(pages.newOrder());
+    };
+
+    const handleOpenSettings = () => {
+        try {
+            // Navigate to settings dashboard page
+            dashboard.navigate({
+                pageId: '58613115-8f7e-40f4-bf0c-89a59a0aeb94',
+                relativeUrl: '/settings'
+            });
+        } catch (error) {
+            console.error('Failed to navigate to settings:', error);
             dashboard.showToast({
-                message: 'Failed to open new order page. Please try again.',
-                type: 'error'
+                message: 'Settings page temporarily unavailable',
+                type: 'warning'
             });
         }
     };
 
+    const handleOpenSupport = () => {
+        try {
+            // For now, navigate to settings as well or implement support page later
+            dashboard.navigate({
+                pageId: '58613115-8f7e-40f4-bf0c-89a59a0aeb94',
+                relativeUrl: '/settings'
+            });
+        } catch (error) {
+            console.error('Failed to navigate to support:', error);
+            dashboard.showToast({
+                message: 'Support page temporarily unavailable',
+                type: 'warning'
+            });
+        }
+    };
+
+    // More Actions menu items
+    const moreActionsMenuItems = [
+        {
+            text: 'Settings',
+            prefixIcon: <Icons.Settings />,
+            onClick: handleOpenSettings
+        },
+        {
+            text: 'Support',
+            prefixIcon: <Icons.Help />,
+            onClick: handleOpenSupport
+        }
+    ];
+
     return (
-        <Button
-            size="medium"
-            border="outlined"
-            onClick={handleAddNewOrder}
-            prefixIcon={<Icons.Add />}
+        <Box
+            direction="horizontal"
+            align="center"
+            width="100%"
+            gap="12px"
+            style={{ justifyContent: 'space-between' }}
         >
-            Add New Order
-        </Button>
-    );
-};
+            {/* Left side - Refresh icon button */}
+            <Box direction="horizontal" align="center">
+                <IconButton
+                    onClick={handleRefresh}
+                    disabled={uiStore.refreshing}
+                    size="medium"
+                    skin="standard"
+                    priority="secondary"
+                >
+                    <Icons.Refresh />
+                </IconButton>
+            </Box>
 
-const RefreshButton: React.FC = observer(() => {
-    const { uiStore } = useStores();
-    const orderController = useOrderController();
+            {/* Center - More Actions PopoverMenu */}
+            <Box direction="horizontal" align="center">
+                <PopoverMenu
+                    triggerElement={
+                        <Button
+                            suffixIcon={<Icons.ChevronDown />}
+                            size="medium"
+                            skin="standard"
+                            priority="secondary"
+                        >
+                            More Actions
+                        </Button>
+                    }
+                    placement="bottom"
+                >
+                    {moreActionsMenuItems.map((item, index) => (
+                        <PopoverMenu.MenuItem
+                            key={index}
+                            onClick={item.onClick}
+                            prefixIcon={item.prefixIcon}
+                            text={item.text}
+                        />
+                    ))}
+                </PopoverMenu>
+            </Box>
 
-    return (
-        <Button
-            size="medium"
-            priority="secondary"
-            onClick={() => orderController.refreshOrders()}
-            disabled={uiStore.refreshing}
-            prefixIcon={uiStore.refreshing ? <Loader size="tiny" /> : <Icons.Refresh />}
-        >
-            {uiStore.refreshing ? 'Refreshing...' : 'Refresh'}
-        </Button>
-    );
-});
-
-export const ActionsBar: React.FC = observer(() => {
-    return (
-        <Box gap="12px" direction="horizontal">
-            <RefreshButton />
-            <AddNewOrderButton />
+            {/* Right side - Add New Order button (Blue/Premium) */}
+            <Box direction="horizontal" align="center">
+                <Button
+                    onClick={handleAddNewOrder}
+                    prefixIcon={<Icons.Add />}
+                    size="medium"
+                    skin="standard"
+                >
+                    Add New Order
+                </Button>
+            </Box>
         </Box>
     );
 });

@@ -198,6 +198,7 @@ export const FulfillmentForm: React.FC = observer(() => {
                         placeholder="Select carrier"
                         disabled={submitting}
                         minWidthPixels="120px"
+                        dropdownWidth="100%"
                     />
                     <Input
                         value={trackingNumber}

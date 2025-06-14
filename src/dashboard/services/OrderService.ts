@@ -311,8 +311,6 @@ export class OrderService {
             console.log(`📞 [${isProd ? 'PROD' : 'DEV'}] Frontend: Calling backend fulfillOrderInWix...`);
             const startTime = Date.now();
 
-            // 🔥 FIXED: Use direct import instead of dynamic import
-            // 🔥 UPDATED: Pass all parameters including sendShippingEmail
             const result = await fulfillOrderInWix({
                 orderId: params.orderId,
                 trackingNumber: params.trackingNumber,

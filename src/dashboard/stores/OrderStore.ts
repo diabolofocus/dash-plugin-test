@@ -88,14 +88,6 @@ export class OrderStore {
         this.loadingStatus = status;
     }
 
-    appendOrders(newOrders: Order[]) {
-        this.orders = [...this.orders, ...newOrders];
-    }
-
-    setOrders(orders: Order[]) {
-        this.orders = orders;
-    }
-
     clearOrders() {
         this.orders = [];
         this.selectedOrder = null;
@@ -134,10 +126,21 @@ export class OrderStore {
         }
     }
 
+    // stores/OrderStore.ts - WORKING VERSION: Simple duplicate prevention
+    // Replace these methods in your OrderStore with these working versions:
+
+    /**
+     * ✅ WORKING: Simple updateOrder method
+     */
     updateOrder(updatedOrder: Order) {
         const orderIndex = this.orders.findIndex(o => o._id === updatedOrder._id);
+
         if (orderIndex !== -1) {
+            console.log(`📝 Updating existing order ${updatedOrder.number} in store`);
             this.orders[orderIndex] = updatedOrder;
+        } else {
+            console.log(`🆕 Order ${updatedOrder.number} not found, adding as new`);
+            this.orders.unshift(updatedOrder);
         }
 
         // Also update in search results if they exist
@@ -145,11 +148,148 @@ export class OrderStore {
             const searchOrderIndex = this.searchResults.orders.findIndex(o => o._id === updatedOrder._id);
             if (searchOrderIndex !== -1) {
                 this.searchResults.orders[searchOrderIndex] = updatedOrder;
+            } else {
+                this.searchResults.orders.unshift(updatedOrder);
+                this.searchResults.totalFound++;
             }
         }
 
+        // Update selected order if it's the same
         if (this.selectedOrder?._id === updatedOrder._id) {
             this.selectedOrder = updatedOrder;
+        }
+    }
+
+    // Add this method to your OrderStore.ts:
+
+    /**
+     * ✅ SIMPLE: Add a new order to the beginning of the list
+     */
+    addNewOrder(newOrder: Order) {
+        // Check if order already exists by ID
+        const exists = this.orders.some(order => order._id === newOrder._id);
+
+        if (exists) {
+            console.log(`⏭️ Order #${newOrder.number} already exists in table, skipping`);
+            return;
+        }
+
+        console.log(`🆕 Adding new order #${newOrder.number} to top of table`);
+
+        // Add to the very beginning of the orders array
+        this.orders.unshift(newOrder);
+
+        // Also add to search results if we're currently showing search results
+        if (this.searchResults && this.searchResults.orders) {
+            this.searchResults.orders.unshift(newOrder);
+            this.searchResults.totalFound++;
+        }
+
+        console.log(`📊 Table now has ${this.orders.length} orders`);
+    }
+
+    /**
+     * ✅ WORKING: Simple setOrders with basic duplicate removal
+     */
+    setOrders(orders: Order[]) {
+        // Simple duplicate removal - keep first occurrence
+        const seen = new Set();
+        const uniqueOrders = orders.filter(order => {
+            if (seen.has(order._id)) {
+                return false;
+            }
+            seen.add(order._id);
+            return true;
+        });
+
+        if (uniqueOrders.length !== orders.length) {
+            console.log(`🔄 Removed ${orders.length - uniqueOrders.length} duplicate orders`);
+        }
+
+        this.orders = uniqueOrders;
+    }
+
+    /**
+     * ✅ WORKING: Simple appendOrders with basic duplicate checking
+     */
+    appendOrders(newOrders: Order[]) {
+        // Get existing IDs
+        const existingIds = new Set(this.orders.map(order => order._id));
+
+        // Filter out orders that already exist
+        const uniqueNewOrders = newOrders.filter(order => !existingIds.has(order._id));
+
+        if (uniqueNewOrders.length > 0) {
+            this.orders = [...this.orders, ...uniqueNewOrders];
+            console.log(`📊 Appended ${uniqueNewOrders.length} new orders (filtered ${newOrders.length - uniqueNewOrders.length} duplicates)`);
+        } else if (newOrders.length > 0) {
+            console.log(`⏭️ All ${newOrders.length} orders were duplicates, skipping append`);
+        }
+    }
+
+    /**
+     * ✅ WORKING: Simple duplicate check
+     */
+    hasDuplicateOrders(): boolean {
+        const ids = this.orders.map(order => order._id);
+        const uniqueIds = new Set(ids);
+        return ids.length !== uniqueIds.size;
+    }
+
+    /**
+     * ✅ WORKING: Manual duplicate cleanup (use sparingly)
+     */
+    removeDuplicateOrders() {
+        const seen = new Set();
+        const uniqueOrders = this.orders.filter(order => {
+            if (seen.has(order._id)) {
+                return false;
+            }
+            seen.add(order._id);
+            return true;
+        });
+
+        const duplicatesRemoved = this.orders.length - uniqueOrders.length;
+
+        if (duplicatesRemoved > 0) {
+            console.log(`🧹 Removed ${duplicatesRemoved} duplicate orders`);
+            this.orders = uniqueOrders;
+
+            // Also clean search results if they exist
+            if (this.searchResults) {
+                const searchSeen = new Set();
+                const uniqueSearchOrders = this.searchResults.orders.filter(order => {
+                    if (searchSeen.has(order._id)) {
+                        return false;
+                    }
+                    searchSeen.add(order._id);
+                    return true;
+                });
+                this.searchResults.orders = uniqueSearchOrders;
+                this.searchResults.totalFound = uniqueSearchOrders.length;
+            }
+        }
+
+        return duplicatesRemoved;
+    }
+
+    /**
+     * ✅ NEW: Debug method to log order state
+     */
+    logOrderState() {
+        const duplicateCheck = this.hasDuplicateOrders();
+        console.log('📊 OrderStore State Debug:', {
+            totalOrders: this.orders.length,
+            hasDuplicates: duplicateCheck,
+            selectedOrder: this.selectedOrder?.number || 'none',
+            searchActive: this.hasActiveSearch,
+            searchResults: this.searchResults?.totalFound || 0,
+            connectionStatus: this.connectionStatus
+        });
+
+        if (duplicateCheck) {
+            console.warn('⚠️ Duplicates detected in order store!');
+            this.removeDuplicateOrders();
         }
     }
 

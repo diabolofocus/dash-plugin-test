@@ -14,6 +14,7 @@
     "@wix/essentials": "^0.1.21",
     "@wix/http-functions": "^1.0.0",
     "@wix/members": "^1.0.298",
+    "@wix/notifications": "^1.0.57",
     "@wix/sdk": "^1.15.22",
     "@wix/sdk-react": "^0.5.9",
     "@wix/stores": "^1.0.464",

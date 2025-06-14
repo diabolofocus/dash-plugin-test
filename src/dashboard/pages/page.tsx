@@ -2,7 +2,7 @@
 import React from 'react';
 import '@wix/design-system/styles.global.css';
 import { StoreProvider, rootStore } from '../hooks/useStores';
-import { OrderFulfillmentPage } from '../components/OrderFulfillmentPage';
+import { OrderFulfillmentPage } from './OrderFulfillmentPage';
 
 const Page: React.FC = () => {
   return (
