@@ -1,0 +1,23 @@
+.canceled-row {
+    opacity: 0.6;
+}
+
+.canceled-row * {
+    color: #9ca3af !important;
+}
+
+tr[data-selected-order] {
+    background-color: #e9f0fe !important;
+}
+
+.orders-table-container::-webkit-scrollbar {
+    display: none;
+    /* Chrome, Safari, Opera */
+}
+
+.orders-table-container {
+    scrollbar-width: none;
+    /* Firefox */
+    -ms-overflow-style: none;
+    /* IE and Edge */
+}

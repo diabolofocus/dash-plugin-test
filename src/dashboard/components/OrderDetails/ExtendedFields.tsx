@@ -44,21 +44,18 @@ const getExtendedFieldsData = (order: Order) => {
     };
 };
 
-// Simple static mapping for your field names - UPDATE THIS WITH YOUR FIELDS
 const getFieldDisplayName = (fieldKey: string): string => {
     // Add your known field mappings here
     const fieldNameMappings: Record<string, string> = {
-        'form_field_e391': 'Invoice',
+        'form_field_e391': 'Paper Invoice',
         'form_field_e392': 'Delivery Notes',
         'form_field_e393': 'Special Instructions',
-        // Add more mappings as you discover them from console logs
     };
 
     if (fieldNameMappings[fieldKey]) {
         return fieldNameMappings[fieldKey];
     }
 
-    // Fallback: Convert field key to readable format
     return fieldKey
         .replace(/^form_field_/i, '')
         .replace(/_/g, ' ')
